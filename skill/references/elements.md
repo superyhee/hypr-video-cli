@@ -1,5 +1,7 @@
 # Elements
 
+> **Contents:** [Restrictions](#restrictions) | [Base Structure](#base-structure) | [Element Types](#element-types) (text, video, image, shape, audio, effect) | [Tracks](#tracks) | [src Formats](#src-formats) | [ID Convention](#id-convention)
+
 Every visual or audio item in the video is an element. Elements are placed on the canvas with position, size, and time range.
 
 ## Restrictions
@@ -156,6 +158,39 @@ Audio elements have no visual placement but need `timeFrame` for timing.
     ]
   }
 }
+```
+
+## Tracks
+
+Tracks group elements into visual layers on the timeline. Every element **MUST** belong to exactly one track.
+
+```json
+{ "id": "track_1", "name": "Video", "type": "video", "elementIds": ["el_a", "el_b"], "isVisible": true }
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Unique track ID |
+| `name` | string | yes | Display name |
+| `type` | string | yes | `video` / `audio` / `text` / `shape` / `image` / `effect` / `caption` |
+| `elementIds` | string[] | yes | Ordered element IDs |
+| `isVisible` | boolean | **yes** | **MUST be `true`** to render |
+
+### Rendering Order
+
+- Elements within a track are **sequential** (ordered by their `timeFrame`)
+- Tracks render as **layers** — **first track (`tracks[0]`) is the topmost layer**, last track is the bottom
+- Put text/overlays on early tracks (top), background shapes on later tracks (bottom)
+
+### Common Track Pattern
+
+```json
+"tracks": [
+  { "id": "track_text", "name": "Text", "type": "text", "elementIds": ["el_title", "el_sub"], "isVisible": true },
+  { "id": "track_video", "name": "Video", "type": "video", "elementIds": ["el_v1", "el_v2"], "isVisible": true },
+  { "id": "track_bg", "name": "Background", "type": "shape", "elementIds": ["el_bg"], "isVisible": true },
+  { "id": "track_audio", "name": "Music", "type": "audio", "elementIds": ["el_bgm"], "isVisible": true }
+]
 ```
 
 ## src Formats

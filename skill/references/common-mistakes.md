@@ -1,6 +1,8 @@
 # Common Mistakes
 
-Read this before building your first canvasState. These are the most frequent causes of blank or broken video output.
+> **Contents:** [1. isVisible](#1-missing-isvisible-true-on-tracks) | [2. opacity](#2-putting-opacity-inside-placement) | [3. fontColor](#3-using-fill-instead-of-fontcolor-for-text-elements) | [4. track name](#4-missing-name-on-tracks) | [5. maxTime](#5-maxtime-smaller-than-element-timeframes) | [6. time units](#6-wrong-time-units) | [7. transitions](#7-non-adjacent-transition-elements) | [8. fonts](#8-using-fonts-not-available-on-the-server) | [9. duplicate IDs](#9-duplicate-element-ids)
+
+These are the most frequent causes of blank or broken video output. Critical rules are inlined in SKILL.md; this file provides detailed explanations with code examples for debugging.
 
 ## 1. Missing `isVisible: true` on tracks
 
