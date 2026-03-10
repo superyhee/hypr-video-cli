@@ -1,9 +1,11 @@
 {
   "name": "hypr-video-cli",
-  "version": "0.1.0",
-  "description": "CLI tool to render videos from canvasState JSON — powered by Fabric Video Editor's server-side rendering engine",
+  "version": "0.1.1",
+  "description": "A Claude Code Skill for creating programmatic videos with CLI — render MP4 from JSON with animations, transitions, captions, keyframes, and 50+ visual effects",
   "license": "MIT",
+  "type": "module",
   "bin": {
+    "hypr-video-cli": "./bin/render-video",
     "render-video": "./bin/render-video"
   },
   "files": [
@@ -15,9 +17,25 @@
   "engines": {
     "node": ">=20"
   },
+  "keywords": [
+    "video",
+    "cli",
+    "render",
+    "mp4",
+    "json",
+    "canvas",
+    "animation",
+    "ffmpeg",
+    "skia"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/superyhee/hypr-video-cli.git"
+  },
   "scripts": {
     "render": "node dist/render-video.mjs",
-    "validate": "npx tsx scripts/validate-canvas-state.ts"
+    "validate": "npx tsx scripts/validate-canvas-state.ts",
+    "prepublishOnly": "node -e \"require('fs').existsSync('dist/render-video.mjs') || (console.error('dist/render-video.mjs not found — build first'), process.exit(1))\""
   },
   "dependencies": {
     "skia-canvas": "^3.0.8",
