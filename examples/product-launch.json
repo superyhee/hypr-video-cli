@@ -1,0 +1,213 @@
+{
+  "canvasState": {
+    "width": 1920,
+    "height": 1080,
+    "backgroundColor": "#000000",
+    "maxTime": 25000,
+    "elements": [
+      {
+        "id": "el_s1_pre",
+        "type": "text",
+        "name": "Pre Title",
+        "timeFrame": { "start": 500, "end": 5000 },
+        "opacity": 0.5,
+        "placement": { "x": 560, "y": 380, "width": 800, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Introducing", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 300, "fontColor": "#a0a0a0", "textAlign": "center" }
+      },
+      {
+        "id": "el_s1_name",
+        "type": "text",
+        "name": "Product Name",
+        "timeFrame": { "start": 1000, "end": 5000 },
+        "placement": { "x": 210, "y": 430, "width": 1500, "height": 130, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "AirPods Ultra", "fontFamily": "Arial", "fontSize": 108, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s1_tag",
+        "type": "text",
+        "name": "Tagline",
+        "timeFrame": { "start": 2000, "end": 5000 },
+        "placement": { "x": 410, "y": 590, "width": 1100, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Sound beyond imagination.", "fontFamily": "Arial", "fontSize": 40, "fontWeight": 300, "fontColor": "#86868b", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_s2_label",
+        "type": "text",
+        "name": "Features Label",
+        "timeFrame": { "start": 5000, "end": 12000 },
+        "opacity": 0.4,
+        "placement": { "x": 560, "y": 180, "width": 800, "height": 25, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "KEY FEATURES", "fontFamily": "Arial", "fontSize": 18, "fontWeight": 600, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_f1_val",
+        "type": "text",
+        "name": "Feature 1 Value",
+        "timeFrame": { "start": 5500, "end": 12000 },
+        "placement": { "x": 160, "y": 300, "width": 500, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "50 dB", "fontFamily": "Arial", "fontSize": 72, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_f1_desc",
+        "type": "text",
+        "name": "Feature 1 Desc",
+        "timeFrame": { "start": 5800, "end": 12000 },
+        "placement": { "x": 160, "y": 400, "width": 500, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Active Noise Cancellation", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_f2_val",
+        "type": "text",
+        "name": "Feature 2 Value",
+        "timeFrame": { "start": 6500, "end": 12000 },
+        "placement": { "x": 710, "y": 300, "width": 500, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "48 hrs", "fontFamily": "Arial", "fontSize": 72, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_f2_desc",
+        "type": "text",
+        "name": "Feature 2 Desc",
+        "timeFrame": { "start": 6800, "end": 12000 },
+        "placement": { "x": 710, "y": 400, "width": 500, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Battery Life with Case", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_f3_val",
+        "type": "text",
+        "name": "Feature 3 Value",
+        "timeFrame": { "start": 7500, "end": 12000 },
+        "placement": { "x": 1260, "y": 300, "width": 500, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "IP68", "fontFamily": "Arial", "fontSize": 72, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_f3_desc",
+        "type": "text",
+        "name": "Feature 3 Desc",
+        "timeFrame": { "start": 7800, "end": 12000 },
+        "placement": { "x": 1260, "y": 400, "width": 500, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Water & Dust Resistant", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_highlight",
+        "type": "text",
+        "name": "Highlight",
+        "timeFrame": { "start": 9000, "end": 12000 },
+        "placement": { "x": 310, "y": 560, "width": 1300, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Spatial Audio with head tracking", "fontFamily": "Arial", "fontSize": 48, "fontWeight": 600, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_highlight_sub",
+        "type": "text",
+        "name": "Highlight Sub",
+        "timeFrame": { "start": 9500, "end": 12000 },
+        "placement": { "x": 410, "y": 660, "width": 1100, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Immersive 3D sound that surrounds you", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 300, "fontColor": "#86868b", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_s3_price_label",
+        "type": "text",
+        "name": "Price Label",
+        "timeFrame": { "start": 12000, "end": 19000 },
+        "opacity": 0.5,
+        "placement": { "x": 660, "y": 360, "width": 600, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Starting at", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s3_price",
+        "type": "text",
+        "name": "Price",
+        "timeFrame": { "start": 12500, "end": 19000 },
+        "placement": { "x": 460, "y": 410, "width": 1000, "height": 120, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "$249", "fontFamily": "Arial", "fontSize": 108, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s3_colors",
+        "type": "text",
+        "name": "Colors",
+        "timeFrame": { "start": 13500, "end": 19000 },
+        "placement": { "x": 510, "y": 570, "width": 900, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Midnight  ·  Starlight  ·  Storm Blue", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 400, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s3_avail",
+        "type": "text",
+        "name": "Availability",
+        "timeFrame": { "start": 14500, "end": 19000 },
+        "placement": { "x": 560, "y": 660, "width": 800, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Available March 28", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 600, "fontColor": "#2997ff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_s4_name",
+        "type": "text",
+        "name": "Closing Name",
+        "timeFrame": { "start": 19000, "end": 25000 },
+        "placement": { "x": 310, "y": 380, "width": 1300, "height": 100, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "AirPods Ultra", "fontFamily": "Arial", "fontSize": 72, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s4_tag",
+        "type": "text",
+        "name": "Closing Tag",
+        "timeFrame": { "start": 19800, "end": 25000 },
+        "placement": { "x": 510, "y": 500, "width": 900, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Sound beyond imagination.", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 300, "fontColor": "#86868b", "textAlign": "center" }
+      },
+      {
+        "id": "el_s4_cta",
+        "type": "text",
+        "name": "CTA",
+        "timeFrame": { "start": 20800, "end": 25000 },
+        "placement": { "x": 660, "y": 590, "width": 600, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Pre-order now at apple.com", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#2997ff", "textAlign": "center" }
+      }
+    ],
+    "tracks": [
+      { "id": "track_text", "name": "Text", "type": "text", "elementIds": ["el_s1_pre", "el_s1_name", "el_s1_tag", "el_s2_label", "el_s2_f1_val", "el_s2_f1_desc", "el_s2_f2_val", "el_s2_f2_desc", "el_s2_f3_val", "el_s2_f3_desc", "el_s2_highlight", "el_s2_highlight_sub", "el_s3_price_label", "el_s3_price", "el_s3_colors", "el_s3_avail", "el_s4_name", "el_s4_tag", "el_s4_cta"], "isVisible": true }
+    ],
+    "animations": [
+      { "id": "a_01", "targetId": "el_s1_pre", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_02", "targetId": "el_s1_pre", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_03", "targetId": "el_s1_name", "type": "fadeIn", "duration": 1200, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_04", "targetId": "el_s1_name", "type": "fadeOut", "duration": 700, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_05", "targetId": "el_s1_tag", "type": "fadeIn", "duration": 1000, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_06", "targetId": "el_s1_tag", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_10", "targetId": "el_s2_label", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_11", "targetId": "el_s2_label", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_12", "targetId": "el_s2_f1_val", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_13", "targetId": "el_s2_f1_val", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_14", "targetId": "el_s2_f1_desc", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_15", "targetId": "el_s2_f1_desc", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_16", "targetId": "el_s2_f2_val", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_17", "targetId": "el_s2_f2_val", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_18", "targetId": "el_s2_f2_desc", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_19", "targetId": "el_s2_f2_desc", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_20", "targetId": "el_s2_f3_val", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_21", "targetId": "el_s2_f3_val", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_22", "targetId": "el_s2_f3_desc", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_23", "targetId": "el_s2_f3_desc", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_24", "targetId": "el_s2_highlight", "type": "fadeIn", "duration": 1000, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_25", "targetId": "el_s2_highlight", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_26", "targetId": "el_s2_highlight_sub", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_27", "targetId": "el_s2_highlight_sub", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_30", "targetId": "el_s3_price_label", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_31", "targetId": "el_s3_price_label", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_32", "targetId": "el_s3_price", "type": "fadeIn", "duration": 1200, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_33", "targetId": "el_s3_price", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_34", "targetId": "el_s3_colors", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_35", "targetId": "el_s3_colors", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_36", "targetId": "el_s3_avail", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_37", "targetId": "el_s3_avail", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_40", "targetId": "el_s4_name", "type": "fadeIn", "duration": 1000, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_41", "targetId": "el_s4_tag", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_42", "targetId": "el_s4_cta", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} }
+    ],
+    "captions": [],
+    "globalCaptionStyle": { "fontSize": 36, "fontFamily": "Arial", "fontColor": "#ffffff", "fontWeight": 700, "textAlign": "center", "lineHeight": 1.2, "charSpacing": 0, "styles": [], "strokeWidth": 0, "strokeColor": "#000000", "shadowColor": "", "shadowBlur": 0, "shadowOffsetX": 0, "shadowOffsetY": 0, "backgroundColor": "" },
+    "keyframeTracks": [],
+    "transitions": []
+  },
+  "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
+}

@@ -1,0 +1,181 @@
+{
+  "canvasState": {
+    "width": 1920,
+    "height": 1080,
+    "backgroundColor": "#0a0a0a",
+    "maxTime": 20000,
+    "elements": [
+      {
+        "id": "el_accent_line",
+        "type": "shape",
+        "name": "Accent Line",
+        "timeFrame": { "start": 0, "end": 20000 },
+        "opacity": 0.6,
+        "placement": { "x": 0, "y": 0, "width": 8, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#7c3aed", "stroke": "", "strokeWidth": 0, "rx": 0, "ry": 0 }
+      },
+
+      {
+        "id": "el_s1_type",
+        "type": "text",
+        "name": "Event Type",
+        "timeFrame": { "start": 300, "end": 7000 },
+        "placement": { "x": 200, "y": 300, "width": 600, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "TECH CONFERENCE 2024", "fontFamily": "Arial", "fontSize": 22, "fontWeight": 600, "fontColor": "#7c3aed", "textAlign": "left" }
+      },
+      {
+        "id": "el_s1_name",
+        "type": "text",
+        "name": "Event Name",
+        "timeFrame": { "start": 800, "end": 7000 },
+        "placement": { "x": 200, "y": 370, "width": 1400, "height": 180, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "DevSummit\nSan Francisco", "fontFamily": "Arial", "fontSize": 84, "fontWeight": 800, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_s1_date",
+        "type": "text",
+        "name": "Date",
+        "timeFrame": { "start": 2000, "end": 7000 },
+        "placement": { "x": 200, "y": 620, "width": 800, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "October 15-17, 2024", "fontFamily": "Arial", "fontSize": 36, "fontWeight": 400, "fontColor": "#a0a0a0", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_s2_label",
+        "type": "text",
+        "name": "Speakers Label",
+        "timeFrame": { "start": 7000, "end": 14000 },
+        "placement": { "x": 200, "y": 200, "width": 600, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "KEYNOTE SPEAKERS", "fontFamily": "Arial", "fontSize": 18, "fontWeight": 600, "fontColor": "#7c3aed", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_sp1",
+        "type": "text",
+        "name": "Speaker 1",
+        "timeFrame": { "start": 7500, "end": 14000 },
+        "placement": { "x": 200, "y": 300, "width": 1000, "height": 55, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Sarah Chen", "fontFamily": "Arial", "fontSize": 48, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_sp1_role",
+        "type": "text",
+        "name": "Speaker 1 Role",
+        "timeFrame": { "start": 7800, "end": 14000 },
+        "placement": { "x": 200, "y": 370, "width": 1000, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "VP of Engineering, Stripe", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#888888", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_sp2",
+        "type": "text",
+        "name": "Speaker 2",
+        "timeFrame": { "start": 9000, "end": 14000 },
+        "placement": { "x": 200, "y": 460, "width": 1000, "height": 55, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "James Rodriguez", "fontFamily": "Arial", "fontSize": 48, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_sp2_role",
+        "type": "text",
+        "name": "Speaker 2 Role",
+        "timeFrame": { "start": 9300, "end": 14000 },
+        "placement": { "x": 200, "y": 530, "width": 1000, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "CTO, Vercel", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#888888", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_sp3",
+        "type": "text",
+        "name": "Speaker 3",
+        "timeFrame": { "start": 10500, "end": 14000 },
+        "placement": { "x": 200, "y": 620, "width": 1000, "height": 55, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Maya Patel", "fontFamily": "Arial", "fontSize": 48, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_sp3_role",
+        "type": "text",
+        "name": "Speaker 3 Role",
+        "timeFrame": { "start": 10800, "end": 14000 },
+        "placement": { "x": 200, "y": 690, "width": 1000, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Head of AI, Anthropic", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#888888", "textAlign": "left" }
+      },
+      {
+        "id": "el_s2_more",
+        "type": "text",
+        "name": "More Speakers",
+        "timeFrame": { "start": 12000, "end": 14000 },
+        "opacity": 0.5,
+        "placement": { "x": 200, "y": 790, "width": 600, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "and 20+ more speakers", "fontFamily": "Arial", "fontSize": 22, "fontWeight": 400, "fontColor": "#7c3aed", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_s3_title",
+        "type": "text",
+        "name": "Register Title",
+        "timeFrame": { "start": 14000, "end": 20000 },
+        "placement": { "x": 200, "y": 350, "width": 1200, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Register Now", "fontFamily": "Arial", "fontSize": 72, "fontWeight": 800, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_s3_early",
+        "type": "text",
+        "name": "Early Bird",
+        "timeFrame": { "start": 14800, "end": 20000 },
+        "placement": { "x": 200, "y": 470, "width": 1000, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Early bird tickets from $299", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 400, "fontColor": "#a0a0a0", "textAlign": "left" }
+      },
+      {
+        "id": "el_s3_url",
+        "type": "text",
+        "name": "URL",
+        "timeFrame": { "start": 16000, "end": 20000 },
+        "placement": { "x": 200, "y": 560, "width": 800, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "devsummit.io/register", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 600, "fontColor": "#7c3aed", "textAlign": "left" }
+      },
+      {
+        "id": "el_s3_location",
+        "type": "text",
+        "name": "Location",
+        "timeFrame": { "start": 17000, "end": 20000 },
+        "opacity": 0.5,
+        "placement": { "x": 200, "y": 660, "width": 800, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Moscone Center, San Francisco, CA", "fontFamily": "Arial", "fontSize": 22, "fontWeight": 400, "fontColor": "#888888", "textAlign": "left" }
+      }
+    ],
+    "tracks": [
+      { "id": "track_bg", "name": "BG", "type": "shape", "elementIds": ["el_accent_line"], "isVisible": true },
+      { "id": "track_text", "name": "Text", "type": "text", "elementIds": ["el_s1_type", "el_s1_name", "el_s1_date", "el_s2_label", "el_s2_sp1", "el_s2_sp1_role", "el_s2_sp2", "el_s2_sp2_role", "el_s2_sp3", "el_s2_sp3_role", "el_s2_more", "el_s3_title", "el_s3_early", "el_s3_url", "el_s3_location"], "isVisible": true }
+    ],
+    "animations": [
+      { "id": "a_01", "targetId": "el_s1_type", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_02", "targetId": "el_s1_type", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_03", "targetId": "el_s1_name", "type": "fadeIn", "duration": 1200, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_04", "targetId": "el_s1_name", "type": "fadeOut", "duration": 700, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_05", "targetId": "el_s1_date", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_06", "targetId": "el_s1_date", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_10", "targetId": "el_s2_label", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_11", "targetId": "el_s2_label", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_12", "targetId": "el_s2_sp1", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_13", "targetId": "el_s2_sp1", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_14", "targetId": "el_s2_sp1_role", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_15", "targetId": "el_s2_sp1_role", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_16", "targetId": "el_s2_sp2", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_17", "targetId": "el_s2_sp2", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_18", "targetId": "el_s2_sp2_role", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_19", "targetId": "el_s2_sp2_role", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_20", "targetId": "el_s2_sp3", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_21", "targetId": "el_s2_sp3", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_22", "targetId": "el_s2_sp3_role", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_23", "targetId": "el_s2_sp3_role", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_24", "targetId": "el_s2_more", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_25", "targetId": "el_s2_more", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_30", "targetId": "el_s3_title", "type": "fadeIn", "duration": 1000, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_31", "targetId": "el_s3_early", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_32", "targetId": "el_s3_url", "type": "fadeIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_33", "targetId": "el_s3_location", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} }
+    ],
+    "captions": [],
+    "globalCaptionStyle": { "fontSize": 36, "fontFamily": "Arial", "fontColor": "#ffffff", "fontWeight": 700, "textAlign": "center", "lineHeight": 1.2, "charSpacing": 0, "styles": [], "strokeWidth": 0, "strokeColor": "#000000", "shadowColor": "", "shadowBlur": 0, "shadowOffsetX": 0, "shadowOffsetY": 0, "backgroundColor": "" },
+    "keyframeTracks": [],
+    "transitions": []
+  },
+  "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
+}

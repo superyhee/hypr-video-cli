@@ -80,7 +80,23 @@ npx tsx scripts/validate-canvas-state.ts input.json
 }
 ```
 
-See `examples/` for more complete examples.
+## Examples
+
+| Template | File | Canvas | Duration | Description |
+|----------|------|--------|----------|-------------|
+| Hello World | `hello-world.json` | 1920x1080 | 5s | Minimal text with fade-in |
+| Apple Style | `apple-style-promo.json` | 1920x1080 | 15s | Minimalist brand promo (black + white + blue) |
+| Tutorial Intro | `tutorial-intro.json` | 1920x1080 | 20s | Step-by-step numbered slides |
+| Product Launch | `product-launch.json` | 1920x1080 | 25s | Feature specs + pricing + CTA |
+| Instagram Story | `instagram-story-9x16.json` | 1080x1920 | 15s | Vertical 9:16 sale promo |
+| Instagram Square | `instagram-square-1x1.json` | 1080x1080 | 12s | 1:1 quote + design tip carousel |
+| Event Announcement | `event-announcement.json` | 1920x1080 | 20s | Conference with speakers list |
+| Flash Sale | `sale-countdown.json` | 1920x1080 | 15s | E-commerce 70% off countdown |
+
+```bash
+# Render any example
+node dist/render-video.mjs examples/product-launch.json -o product.mp4
+```
 
 ## Element Types
 

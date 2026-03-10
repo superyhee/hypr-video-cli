@@ -1,0 +1,154 @@
+{
+  "canvasState": {
+    "width": 1920,
+    "height": 1080,
+    "backgroundColor": "#0f0f0f",
+    "maxTime": 15000,
+    "elements": [
+      {
+        "id": "el_flash_bg",
+        "type": "shape",
+        "name": "Flash BG",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "opacity": 0.15,
+        "placement": { "x": 360, "y": 180, "width": 1200, "height": 720, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#ef4444", "stroke": "", "strokeWidth": 0, "rx": 24, "ry": 24 }
+      },
+
+      {
+        "id": "el_s1_flash",
+        "type": "text",
+        "name": "Flash Sale",
+        "timeFrame": { "start": 200, "end": 6000 },
+        "placement": { "x": 360, "y": 220, "width": 1200, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "FLASH SALE", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 800, "fontColor": "#ef4444", "textAlign": "center" }
+      },
+      {
+        "id": "el_s1_percent",
+        "type": "text",
+        "name": "Discount",
+        "timeFrame": { "start": 600, "end": 6000 },
+        "placement": { "x": 260, "y": 320, "width": 1400, "height": 200, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "70% OFF", "fontFamily": "Arial", "fontSize": 160, "fontWeight": 900, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s1_everything",
+        "type": "text",
+        "name": "Everything",
+        "timeFrame": { "start": 1500, "end": 6000 },
+        "placement": { "x": 510, "y": 550, "width": 900, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "On everything. No exceptions.", "fontFamily": "Arial", "fontSize": 36, "fontWeight": 400, "fontColor": "#a0a0a0", "textAlign": "center" }
+      },
+      {
+        "id": "el_s1_timer_label",
+        "type": "text",
+        "name": "Timer Label",
+        "timeFrame": { "start": 3000, "end": 6000 },
+        "placement": { "x": 660, "y": 680, "width": 600, "height": 35, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Ends in 24 hours", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 600, "fontColor": "#ef4444", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_s2_title",
+        "type": "text",
+        "name": "Top Deals Title",
+        "timeFrame": { "start": 6000, "end": 11000 },
+        "opacity": 0.5,
+        "placement": { "x": 560, "y": 180, "width": 800, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "TOP DEALS", "fontFamily": "Arial", "fontSize": 20, "fontWeight": 700, "fontColor": "#ef4444", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_item1",
+        "type": "text",
+        "name": "Deal 1",
+        "timeFrame": { "start": 6500, "end": 11000 },
+        "placement": { "x": 310, "y": 280, "width": 1300, "height": 55, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Premium Headphones  —  $299  $89", "fontFamily": "Arial", "fontSize": 40, "fontWeight": 600, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_item2",
+        "type": "text",
+        "name": "Deal 2",
+        "timeFrame": { "start": 7500, "end": 11000 },
+        "placement": { "x": 310, "y": 400, "width": 1300, "height": 55, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Smart Watch Pro  —  $499  $149", "fontFamily": "Arial", "fontSize": 40, "fontWeight": 600, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_item3",
+        "type": "text",
+        "name": "Deal 3",
+        "timeFrame": { "start": 8500, "end": 11000 },
+        "placement": { "x": 310, "y": 520, "width": 1300, "height": 55, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Wireless Speaker  —  $199  $59", "fontFamily": "Arial", "fontSize": 40, "fontWeight": 600, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s2_free",
+        "type": "text",
+        "name": "Free Shipping",
+        "timeFrame": { "start": 9500, "end": 11000 },
+        "placement": { "x": 560, "y": 680, "width": 800, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Free shipping on all orders", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 400, "fontColor": "#a0a0a0", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_s3_cta",
+        "type": "text",
+        "name": "CTA",
+        "timeFrame": { "start": 11000, "end": 15000 },
+        "placement": { "x": 360, "y": 380, "width": 1200, "height": 90, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Shop Now", "fontFamily": "Arial", "fontSize": 80, "fontWeight": 800, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_s3_code",
+        "type": "text",
+        "name": "Code",
+        "timeFrame": { "start": 12000, "end": 15000 },
+        "placement": { "x": 560, "y": 520, "width": 800, "height": 45, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Use code FLASH70 at checkout", "fontFamily": "Arial", "fontSize": 30, "fontWeight": 600, "fontColor": "#ef4444", "textAlign": "center" }
+      },
+      {
+        "id": "el_s3_url",
+        "type": "text",
+        "name": "URL",
+        "timeFrame": { "start": 13000, "end": 15000 },
+        "opacity": 0.5,
+        "placement": { "x": 660, "y": 620, "width": 600, "height": 30, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "techstore.com/flash-sale", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#a0a0a0", "textAlign": "center" }
+      }
+    ],
+    "tracks": [
+      { "id": "track_bg", "name": "BG", "type": "shape", "elementIds": ["el_flash_bg"], "isVisible": true },
+      { "id": "track_text", "name": "Text", "type": "text", "elementIds": ["el_s1_flash", "el_s1_percent", "el_s1_everything", "el_s1_timer_label", "el_s2_title", "el_s2_item1", "el_s2_item2", "el_s2_item3", "el_s2_free", "el_s3_cta", "el_s3_code", "el_s3_url"], "isVisible": true }
+    ],
+    "animations": [
+      { "id": "a_01", "targetId": "el_flash_bg", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_02", "targetId": "el_flash_bg", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_03", "targetId": "el_s1_flash", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_04", "targetId": "el_s1_flash", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_05", "targetId": "el_s1_percent", "type": "zoomIn", "duration": 1000, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_06", "targetId": "el_s1_percent", "type": "fadeOut", "duration": 600, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_07", "targetId": "el_s1_everything", "type": "fadeIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_08", "targetId": "el_s1_everything", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_09", "targetId": "el_s1_timer_label", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_10", "targetId": "el_s1_timer_label", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_11", "targetId": "el_s2_title", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_12", "targetId": "el_s2_title", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_13", "targetId": "el_s2_item1", "type": "slideIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_14", "targetId": "el_s2_item1", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_15", "targetId": "el_s2_item2", "type": "slideIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_16", "targetId": "el_s2_item2", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_17", "targetId": "el_s2_item3", "type": "slideIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_18", "targetId": "el_s2_item3", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_19", "targetId": "el_s2_free", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_20", "targetId": "el_s2_free", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "a_21", "targetId": "el_s3_cta", "type": "zoomIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_22", "targetId": "el_s3_code", "type": "fadeIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "a_23", "targetId": "el_s3_url", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} }
+    ],
+    "captions": [],
+    "globalCaptionStyle": { "fontSize": 36, "fontFamily": "Arial", "fontColor": "#ffffff", "fontWeight": 700, "textAlign": "center", "lineHeight": 1.2, "charSpacing": 0, "styles": [], "strokeWidth": 0, "strokeColor": "#000000", "shadowColor": "", "shadowBlur": 0, "shadowOffsetX": 0, "shadowOffsetY": 0, "backgroundColor": "" },
+    "keyframeTracks": [],
+    "transitions": []
+  },
+  "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
+}
