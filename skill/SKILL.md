@@ -43,6 +43,7 @@ Read the linked reference when building that part:
 | Transitions (crossfade, wipe, dissolve between clips) | [transitions.md](references/transitions.md) | When adjacent clips need blend effects |
 | Captions & subtitle styling | [captions.md](references/captions.md) | When video has subtitles or karaoke text |
 | Keyframe tracks (animate properties over time) | [keyframes.md](references/keyframes.md) | When properties change over time (opacity, position, scale) |
+| Visual effects (blur, glow, glitch, particles, etc.) | [effects.md](references/effects.md) | When adding post-processing effects to the video |
 | Common mistakes & gotchas | [common-mistakes.md](references/common-mistakes.md) | **Always read before first use** |
 
 ## Quick Example
