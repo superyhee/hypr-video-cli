@@ -1,0 +1,738 @@
+{
+  "canvasState": {
+    "width": 1920,
+    "height": 1080,
+    "backgroundColor": "#1a1a1a",
+    "maxTime": 16000,
+    "elements": [
+      {
+        "id": "el_fx_vhs",
+        "type": "effect",
+        "name": "VHS Base",
+        "timeFrame": { "start": 0, "end": 16000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "vhs",
+              "effectParams": {
+                "distortion": 0.4,
+                "noise": 0.25,
+                "colorBleed": 0.5
+              },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_color",
+        "type": "effect",
+        "name": "Retro Color",
+        "timeFrame": { "start": 0, "end": 16000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "colorGrading",
+              "effectParams": {
+                "brightness": -0.05,
+                "contrast": 0.2,
+                "saturation": -0.3,
+                "temperature": 0.15,
+                "tint": 0.05,
+                "gamma": 0.9,
+                "hue": 0
+              },
+              "enabled": true
+            },
+            {
+              "effectType": "vignette",
+              "effectParams": {
+                "intensity": 0.5,
+                "radius": 0.65,
+                "softness": 0.6,
+                "colorR": 0.05,
+                "colorG": 0,
+                "colorB": 0
+              },
+              "enabled": true
+            }
+          ]
+        }
+      },
+
+      {
+        "id": "el_scanline",
+        "type": "shape",
+        "name": "Scanline Bar",
+        "timeFrame": { "start": 0, "end": 16000 },
+        "opacity": 0.06,
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "shapeType": "rect",
+          "fill": "#ffffff",
+          "stroke": "",
+          "strokeWidth": 0,
+          "rx": 0,
+          "ry": 0
+        }
+      },
+
+      {
+        "id": "el_s1_rec",
+        "type": "text",
+        "name": "REC Indicator",
+        "timeFrame": { "start": 0, "end": 16000 },
+        "opacity": 0.7,
+        "placement": {
+          "x": 80,
+          "y": 60,
+          "width": 200,
+          "height": 30,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "● REC",
+          "fontFamily": "Courier New",
+          "fontSize": 22,
+          "fontWeight": 700,
+          "fontColor": "#ff0000",
+          "textAlign": "left"
+        }
+      },
+      {
+        "id": "el_s1_timestamp",
+        "type": "text",
+        "name": "Timestamp",
+        "timeFrame": { "start": 0, "end": 16000 },
+        "opacity": 0.5,
+        "placement": {
+          "x": 1550,
+          "y": 60,
+          "width": 300,
+          "height": 25,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "1987.08.15  PM 11:42",
+          "fontFamily": "Courier New",
+          "fontSize": 18,
+          "fontWeight": 400,
+          "fontColor": "#ffffff",
+          "textAlign": "right"
+        }
+      },
+      {
+        "id": "el_s1_play",
+        "type": "text",
+        "name": "Play Icon",
+        "timeFrame": { "start": 0, "end": 16000 },
+        "opacity": 0.4,
+        "placement": {
+          "x": 1650,
+          "y": 980,
+          "width": 200,
+          "height": 25,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "▶ PLAY",
+          "fontFamily": "Courier New",
+          "fontSize": 18,
+          "fontWeight": 400,
+          "fontColor": "#ffffff",
+          "textAlign": "right"
+        }
+      },
+
+      {
+        "id": "el_fx_halftone_s1",
+        "type": "effect",
+        "name": "Halftone S1",
+        "timeFrame": { "start": 0, "end": 5500 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "halftone",
+              "effectParams": { "size": 4, "angle": 45 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_s1_title",
+        "type": "text",
+        "name": "Retro Title",
+        "timeFrame": { "start": 500, "end": 5500 },
+        "placement": {
+          "x": 260,
+          "y": 340,
+          "width": 1400,
+          "height": 150,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "REWIND",
+          "fontFamily": "Arial",
+          "fontSize": 144,
+          "fontWeight": 900,
+          "fontColor": "#ffdd00",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s1_sub",
+        "type": "text",
+        "name": "Retro Sub",
+        "timeFrame": { "start": 1500, "end": 5500 },
+        "placement": {
+          "x": 460,
+          "y": 530,
+          "width": 1000,
+          "height": 40,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "A trip down memory lane",
+          "fontFamily": "Courier New",
+          "fontSize": 28,
+          "fontWeight": 400,
+          "fontColor": "#ff6b6b",
+          "textAlign": "center"
+        }
+      },
+
+      {
+        "id": "el_fx_shift_s2",
+        "type": "effect",
+        "name": "Color Shift S2",
+        "timeFrame": { "start": 5500, "end": 11000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "colorShift",
+              "effectParams": { "amount": 0.4, "speed": 1.5 },
+              "enabled": true
+            },
+            {
+              "effectType": "posterize",
+              "effectParams": { "levels": 8, "speed": 0 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_s2_label",
+        "type": "text",
+        "name": "Tape Label",
+        "timeFrame": { "start": 5500, "end": 11000 },
+        "opacity": 0.4,
+        "placement": {
+          "x": 560,
+          "y": 280,
+          "width": 800,
+          "height": 25,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "SIDE B — TRACK 03",
+          "fontFamily": "Courier New",
+          "fontSize": 18,
+          "fontWeight": 600,
+          "fontColor": "#ffdd00",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s2_text",
+        "type": "text",
+        "name": "Nostalgia Text",
+        "timeFrame": { "start": 6000, "end": 11000 },
+        "placement": {
+          "x": 260,
+          "y": 370,
+          "width": 1400,
+          "height": 100,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "Saturday Night",
+          "fontFamily": "Arial",
+          "fontSize": 88,
+          "fontWeight": 800,
+          "fontColor": "#ffffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s2_text2",
+        "type": "text",
+        "name": "Nostalgia Text 2",
+        "timeFrame": { "start": 7200, "end": 11000 },
+        "placement": {
+          "x": 260,
+          "y": 490,
+          "width": 1400,
+          "height": 100,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "Mixtape",
+          "fontFamily": "Arial",
+          "fontSize": 88,
+          "fontWeight": 800,
+          "fontColor": "#ff6b6b",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s2_desc",
+        "type": "text",
+        "name": "Description",
+        "timeFrame": { "start": 8500, "end": 11000 },
+        "opacity": 0.5,
+        "placement": {
+          "x": 510,
+          "y": 630,
+          "width": 900,
+          "height": 30,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "The sounds that defined a generation",
+          "fontFamily": "Courier New",
+          "fontSize": 22,
+          "fontWeight": 400,
+          "fontColor": "#cccccc",
+          "textAlign": "center"
+        }
+      },
+
+      {
+        "id": "el_fx_s3",
+        "type": "effect",
+        "name": "Glitch Outro",
+        "timeFrame": { "start": 11000, "end": 16000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "rgbSplit",
+              "effectParams": { "amount": 6, "angle": 0, "speed": 1 },
+              "enabled": true
+            },
+            {
+              "effectType": "echo",
+              "effectParams": { "decay": 0.5, "count": 3 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_s3_cta",
+        "type": "text",
+        "name": "CTA",
+        "timeFrame": { "start": 11500, "end": 16000 },
+        "placement": {
+          "x": 360,
+          "y": 400,
+          "width": 1200,
+          "height": 100,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "Press Play",
+          "fontFamily": "Arial",
+          "fontSize": 80,
+          "fontWeight": 900,
+          "fontColor": "#ffdd00",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s3_url",
+        "type": "text",
+        "name": "URL",
+        "timeFrame": { "start": 13000, "end": 16000 },
+        "opacity": 0.5,
+        "placement": {
+          "x": 610,
+          "y": 540,
+          "width": 700,
+          "height": 30,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "rewind.fm",
+          "fontFamily": "Courier New",
+          "fontSize": 24,
+          "fontWeight": 400,
+          "fontColor": "#ff6b6b",
+          "textAlign": "center"
+        }
+      }
+    ],
+    "tracks": [
+      {
+        "id": "track_fx_base",
+        "name": "Base FX",
+        "type": "effect",
+        "elementIds": ["el_fx_vhs", "el_fx_color"],
+        "isVisible": true
+      },
+      {
+        "id": "track_fx_scene",
+        "name": "Scene FX",
+        "type": "effect",
+        "elementIds": ["el_fx_halftone_s1", "el_fx_shift_s2", "el_fx_s3"],
+        "isVisible": true
+      },
+      {
+        "id": "track_hud",
+        "name": "HUD",
+        "type": "text",
+        "elementIds": ["el_s1_rec", "el_s1_timestamp", "el_s1_play"],
+        "isVisible": true
+      },
+      {
+        "id": "track_text",
+        "name": "Text",
+        "type": "text",
+        "elementIds": [
+          "el_s1_title",
+          "el_s1_sub",
+          "el_s2_label",
+          "el_s2_text",
+          "el_s2_text2",
+          "el_s2_desc",
+          "el_s3_cta",
+          "el_s3_url"
+        ],
+        "isVisible": true
+      },
+      {
+        "id": "track_shapes",
+        "name": "Shapes",
+        "type": "shape",
+        "elementIds": ["el_scanline"],
+        "isVisible": true
+      }
+    ],
+    "animations": [
+      {
+        "id": "a_01",
+        "targetId": "el_s1_rec",
+        "type": "fadeIn",
+        "duration": 300,
+        "group": "in",
+        "easing": "linear",
+        "properties": {}
+      },
+      {
+        "id": "a_02",
+        "targetId": "el_s1_rec",
+        "type": "flash",
+        "duration": 1500,
+        "group": "loop",
+        "easing": "linear",
+        "properties": {}
+      },
+      {
+        "id": "a_03",
+        "targetId": "el_s1_title",
+        "type": "zoomIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_04",
+        "targetId": "el_s1_title",
+        "type": "fadeOut",
+        "duration": 500,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_05",
+        "targetId": "el_s1_sub",
+        "type": "fadeIn",
+        "duration": 700,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_06",
+        "targetId": "el_s1_sub",
+        "type": "fadeOut",
+        "duration": 500,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_07",
+        "targetId": "el_fx_halftone_s1",
+        "type": "fadeIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_08",
+        "targetId": "el_fx_halftone_s1",
+        "type": "fadeOut",
+        "duration": 600,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_10",
+        "targetId": "el_s2_label",
+        "type": "fadeIn",
+        "duration": 500,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_11",
+        "targetId": "el_s2_label",
+        "type": "fadeOut",
+        "duration": 400,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_12",
+        "targetId": "el_s2_text",
+        "type": "slideIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_13",
+        "targetId": "el_s2_text",
+        "type": "fadeOut",
+        "duration": 600,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_14",
+        "targetId": "el_s2_text2",
+        "type": "slideIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_15",
+        "targetId": "el_s2_text2",
+        "type": "fadeOut",
+        "duration": 600,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_16",
+        "targetId": "el_s2_desc",
+        "type": "fadeIn",
+        "duration": 600,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_17",
+        "targetId": "el_s2_desc",
+        "type": "fadeOut",
+        "duration": 500,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_20",
+        "targetId": "el_s3_cta",
+        "type": "bounceIn",
+        "duration": 900,
+        "group": "in",
+        "easing": "easeOutBounce",
+        "properties": {}
+      },
+      {
+        "id": "a_21",
+        "targetId": "el_s3_cta",
+        "type": "pulse",
+        "duration": 1500,
+        "group": "loop",
+        "easing": "easeInOut",
+        "properties": {}
+      },
+      {
+        "id": "a_22",
+        "targetId": "el_s3_url",
+        "type": "fadeIn",
+        "duration": 700,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      }
+    ],
+    "captions": [],
+    "globalCaptionStyle": {
+      "fontSize": 36,
+      "fontFamily": "Courier New",
+      "fontColor": "#ffffff",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 1.2,
+      "charSpacing": 0,
+      "styles": [],
+      "strokeWidth": 0,
+      "strokeColor": "#000000",
+      "shadowColor": "",
+      "shadowBlur": 0,
+      "shadowOffsetX": 0,
+      "shadowOffsetY": 0,
+      "backgroundColor": ""
+    },
+    "keyframeTracks": [
+      {
+        "id": "kf_vhs_intensity",
+        "targetId": "el_fx_vhs",
+        "propertyType": "effectParam",
+        "layerIndex": 0,
+        "enabled": true,
+        "keyframes": [
+          {
+            "id": "kf_1",
+            "time": 0,
+            "properties": { "distortion": 0.3 },
+            "easing": "easeInOut"
+          },
+          {
+            "id": "kf_2",
+            "time": 5000,
+            "properties": { "distortion": 0.6 },
+            "easing": "easeInOut"
+          },
+          {
+            "id": "kf_3",
+            "time": 5500,
+            "properties": { "distortion": 0.2 },
+            "easing": "easeOut"
+          },
+          {
+            "id": "kf_4",
+            "time": 11000,
+            "properties": { "distortion": 0.7 },
+            "easing": "easeInOut"
+          },
+          {
+            "id": "kf_5",
+            "time": 11500,
+            "properties": { "distortion": 0.3 },
+            "easing": "easeOut"
+          },
+          {
+            "id": "kf_6",
+            "time": 16000,
+            "properties": { "distortion": 0.5 },
+            "easing": "linear"
+          }
+        ]
+      }
+    ],
+    "transitions": []
+  },
+  "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
+}

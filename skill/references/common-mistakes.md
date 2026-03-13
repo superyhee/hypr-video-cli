@@ -11,13 +11,21 @@ These are the most frequent causes of blank or broken video output. Critical rul
 **Cause:** `DataConverter` sets `isVisible: !!track.isVisible`, so `undefined` becomes `false`.
 
 Wrong:
+
 ```json
 { "id": "t1", "type": "text", "elementIds": ["el_1"] }
 ```
 
 Right:
+
 ```json
-{ "id": "t1", "name": "Text", "type": "text", "elementIds": ["el_1"], "isVisible": true }
+{
+  "id": "t1",
+  "name": "Text",
+  "type": "text",
+  "elementIds": ["el_1"],
+  "isVisible": true
+}
 ```
 
 ## 2. Putting `opacity` inside `placement`
@@ -27,11 +35,13 @@ Right:
 **Cause:** `DataConverter` reads `element.opacity`, not `element.placement.opacity`.
 
 Wrong:
+
 ```json
 { "id": "el_1", "placement": { "x": 0, "y": 0, "opacity": 0.5, ... } }
 ```
 
 Right:
+
 ```json
 { "id": "el_1", "opacity": 0.5, "placement": { "x": 0, "y": 0, ... } }
 ```
@@ -43,11 +53,13 @@ Right:
 **Cause:** `DataConverter` reads `props.fontColor` for text color, NOT `props.fill`. `fill` is only for shapes. When `fontColor` is missing, it defaults to `"#000000"`.
 
 Wrong:
+
 ```json
 { "type": "text", "properties": { "text": "Hello", "fill": "#ffffff" } }
 ```
 
 Right:
+
 ```json
 { "type": "text", "properties": { "text": "Hello", "fontColor": "#ffffff" } }
 ```
@@ -74,15 +86,15 @@ Fix: Set `maxTime` >= the largest `timeFrame.end` across all elements.
 
 **Symptom:** Elements appear for a fraction of a second or don't show up.
 
-| Field | Unit | Example |
-|-------|------|---------|
-| `timeFrame.start/end` | milliseconds | `5000` = 5 seconds |
-| `animation.duration` | milliseconds | `500` = 0.5 seconds |
-| `transition.duration` | milliseconds | `800` = 0.8 seconds |
-| `caption.startTime/endTime` | SRT format | `"00:00:05.000"` = 5 seconds |
-| `caption.wordTimings.start/end` | seconds (float) | `5.0` = 5 seconds |
-| `keyframe.time` | milliseconds, **relative to element start** | `1000` = 1s after element appears |
-| `maxTime` | milliseconds | `20000` = 20 seconds |
+| Field                           | Unit                                        | Example                           |
+| ------------------------------- | ------------------------------------------- | --------------------------------- |
+| `timeFrame.start/end`           | milliseconds                                | `5000` = 5 seconds                |
+| `animation.duration`            | milliseconds                                | `500` = 0.5 seconds               |
+| `transition.duration`           | milliseconds                                | `800` = 0.8 seconds               |
+| `caption.startTime/endTime`     | SRT format                                  | `"00:00:05.000"` = 5 seconds      |
+| `caption.wordTimings.start/end` | seconds (float)                             | `5.0` = 5 seconds                 |
+| `keyframe.time`                 | milliseconds, **relative to element start** | `1000` = 1s after element appears |
+| `maxTime`                       | milliseconds                                | `20000` = 20 seconds              |
 
 ## 7. Non-adjacent transition elements
 
@@ -91,6 +103,7 @@ Fix: Set `maxTime` >= the largest `timeFrame.end` across all elements.
 **Cause:** `sourceElementId` and `targetElementId` must be adjacent in the same track's `elementIds`.
 
 Wrong (not on same track):
+
 ```json
 "tracks": [
   { "elementIds": ["el_1"] },
@@ -100,6 +113,7 @@ Wrong (not on same track):
 ```
 
 Right (same track, adjacent):
+
 ```json
 "tracks": [
   { "elementIds": ["el_1", "el_2"] }

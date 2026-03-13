@@ -2,15 +2,139 @@
 // Bundled Fabric Video Editor CLI — render videos from canvasState JSON
 // Native deps required: skia-canvas, sharp. System: FFmpeg.
 import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// ../../server/src/renderer/WorkerFrameRenderer.ts
+var WorkerFrameRenderer_exports = {};
+__export(WorkerFrameRenderer_exports, {
+  WorkerFrameRenderer: () => WorkerFrameRenderer
+});
+import { Worker } from "worker_threads";
+import * as path4 from "path";
+import * as os4 from "os";
+var WorkerFrameRenderer;
+var init_WorkerFrameRenderer = __esm({
+  "../../server/src/renderer/WorkerFrameRenderer.ts"() {
+    "use strict";
+    WorkerFrameRenderer = class {
+      constructor() {
+        /** Worker 数量：min(8, cpuCount-1)，至少 2 */
+        this.numWorkers = Math.min(8, Math.max(2, os4.cpus().length - 1));
+      }
+      /**
+       * 并行渲染所有帧，按 frameIndex 顺序通过 onFrameBuffer 回调交付给调用方。
+       *
+       * @param session    序列化后的渲染上下文（传给 Workers）
+       * @param totalFrames 总帧数
+       * @param onFrameBuffer  按顺序调用：(frameIndex, ArrayBuffer) => Promise<void>
+       * @param onProgress    每帧完成时调用
+       */
+      async renderAllFrames(session, totalFrames, onFrameBuffer, onProgress) {
+        const resolvers = new Array(totalFrames);
+        const framePromises = Array.from(
+          { length: totalFrames },
+          (_, i) => new Promise((resolve3, reject) => {
+            resolvers[i] = { resolve: resolve3, reject };
+          })
+        );
+        const ext = __filename.endsWith(".ts") ? "ts" : "js";
+        const workerPath = path4.join(import.meta.dirname, `frameWorker.${ext}`);
+        const workerExecArgv = ext === "ts" ? ["--require", "tsx/cjs"] : [];
+        let nextFrameToDispatch = 0;
+        const workers = [];
+        const workerCurrentFrame = /* @__PURE__ */ new Map();
+        const dispatch = (w) => {
+          if (nextFrameToDispatch >= totalFrames) return;
+          const fi = nextFrameToDispatch++;
+          workerCurrentFrame.set(w, fi);
+          w.postMessage({ type: "renderFrame", frameIndex: fi });
+        };
+        for (let i = 0; i < this.numWorkers; i++) {
+          workers.push(new Worker(workerPath, {
+            workerData: session,
+            execArgv: workerExecArgv
+          }));
+        }
+        await Promise.all(workers.map(
+          (w, i) => new Promise((resolve3, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error(`Worker ${i} init timeout`)),
+              3e4
+            );
+            w.once("message", (msg) => {
+              if (msg.type === "ready") {
+                clearTimeout(timeout);
+                resolve3();
+              }
+            });
+            w.once("error", (e) => {
+              clearTimeout(timeout);
+              reject(e);
+            });
+          })
+        ));
+        for (const w of workers) {
+          w.on("message", (msg) => {
+            workerCurrentFrame.delete(w);
+            if (msg.type === "frameResult") {
+              resolvers[msg.frameIndex].resolve(msg.buffer);
+            } else if (msg.type === "frameError") {
+              resolvers[msg.frameIndex].reject(new Error(msg.error));
+            }
+            dispatch(w);
+          });
+          w.on("error", (err) => {
+            const fi = workerCurrentFrame.get(w);
+            if (fi !== void 0) {
+              const msg = err instanceof Error ? err.message : String(err);
+              resolvers[fi].reject(new Error(`Worker crashed at frame ${fi}: ${msg}`));
+              workerCurrentFrame.delete(w);
+            }
+          });
+          dispatch(w);
+        }
+        try {
+          for (let i = 0; i < totalFrames; i++) {
+            const buffer = await framePromises[i];
+            await onFrameBuffer(i, buffer);
+            onProgress(i);
+          }
+        } finally {
+          for (const w of workers) {
+            try {
+              w.terminate();
+            } catch {
+            }
+          }
+          const abortErr = new Error("Rendering aborted");
+          for (const r of resolvers) {
+            try {
+              r?.reject(abortErr);
+            } catch {
+            }
+          }
+        }
+      }
+    };
+  }
+});
 
 // ../../server/src/cli/render-video.ts
 import * as fs5 from "fs";
-import * as path5 from "path";
+import * as path6 from "path";
 
 // ../../server/src/renderer/ServerRenderExporter.ts
 import { Canvas, loadImage as loadImage3 } from "skia-canvas";
-import * as path4 from "path";
-import * as os4 from "os";
+import * as path5 from "path";
+import * as os5 from "os";
 import * as fs4 from "fs";
 import { spawn as spawnProcess, execSync } from "child_process";
 import sharp from "sharp";
@@ -65,7 +189,7 @@ var ANIMATION_SPEEDS = {
   FLOAT_FREQUENCY: 15e-4,
   GLITCH_FREQUENCY: 8e-3,
   CHAR_STAGGER_OVERLAP: 0.4,
-  WORD_POP_OVERLAP: 0.3,
+  WORD_POP_OVERLAP: 0.15,
   CHAR_BLUR_REVEAL_OVERLAP: 0.4,
   COLOR_FLOW_SPEED: 2e-3
 };
@@ -81,7 +205,7 @@ var ANIMATION_SIZES = {
   FLOAT_AMPLITUDE: 8,
   GLITCH_AMPLITUDE: 6,
   ROTATE_END_ANGLE: 90,
-  WORD_POP_OVERSHOOT: 1.3,
+  WORD_POP_OVERSHOOT: 1.5,
   CHAR_BLUR_MAX: 6,
   BLUR_SHIMMER_WARM_R: 255,
   BLUR_SHIMMER_WARM_G: 215,
@@ -269,6 +393,24 @@ var DataConverter = class _DataConverter {
       cropY: placement.cropY,
       cropWidth: placement.cropWidth,
       cropHeight: placement.cropHeight,
+      // Mask
+      ...element.mask?.enabled ? {
+        maskEnabled: true,
+        maskShapeType: element.mask.shapeType,
+        maskX: element.mask.x ?? 0,
+        maskY: element.mask.y ?? 0,
+        maskScaleX: element.mask.scaleX ?? 1,
+        maskScaleY: element.mask.scaleY ?? 1,
+        maskRotation: element.mask.rotation ?? 0,
+        maskInverted: element.mask.inverted ?? false,
+        maskSides: element.mask.sides,
+        maskInnerRadius: element.mask.innerRadius,
+        maskFeather: element.mask.feather,
+        maskPathData: element.mask.pathData,
+        maskMode: element.mask.mode ?? "clip",
+        maskEffectType: element.mask.effectType,
+        maskEffectIntensity: element.mask.effectIntensity
+      } : {},
       animations: animations.map((a) => _DataConverter.convertAnimation(a)),
       keyframeTracks: keyframeTracks.filter((t) => t.enabled && t.keyframes.length > 0)
     };
@@ -564,10 +706,21 @@ var DataConverter = class _DataConverter {
       startMs: srtTimeToMs(cap.startTime),
       endMs: srtTimeToMs(cap.endTime)
     }));
+    const transitionPairs = [];
+    if (transitions) {
+      for (const t of transitions) {
+        if (t.duration > 0) {
+          transitionPairs.push({ src: t.sourceElementId, tgt: t.targetElementId });
+        }
+      }
+    }
+    const frameDurationMs = 1e3 / fps;
     for (let f = 1; f < totalFrames; f++) {
       const curr = activeElementsByFrame[f];
       const prev = activeElementsByFrame[f - 1];
       const timeSec = f / fps;
+      const timeMs = timeSec * 1e3;
+      const prevTimeMs = timeMs - frameDurationMs;
       if (curr.length !== prev.length) continue;
       let sameElements = true;
       for (let i = 0; i < curr.length; i++) {
@@ -593,8 +746,38 @@ var DataConverter = class _DataConverter {
           break;
         }
       }
+      if (!hasDynamicElement && transitionPairs.length > 0) {
+        outer: for (let ti = 0; ti < transitionPairs.length; ti++) {
+          const { src, tgt } = transitionPairs[ti];
+          let hasSrc = false, hasTgt = false;
+          for (let i = 0; i < curr.length; i++) {
+            const id = curr[i].element.id;
+            if (id === src) hasSrc = true;
+            else if (id === tgt) hasTgt = true;
+            if (hasSrc && hasTgt) {
+              hasDynamicElement = true;
+              break outer;
+            }
+          }
+        }
+      }
       if (hasDynamicElement) continue;
       if (_DataConverter._hasActiveCaptionAnimation(captionTimesMs, captionAnimation, timeSec)) continue;
+      if (captionTimesMs && captionTimesMs.length > 0) {
+        let onBoundary = false;
+        for (let ci = 0; ci < captionTimesMs.length; ci++) {
+          const { startMs, endMs } = captionTimesMs[ci];
+          if (prevTimeMs < startMs && timeMs >= startMs) {
+            onBoundary = true;
+            break;
+          }
+          if (prevTimeMs <= endMs && timeMs > endMs) {
+            onBoundary = true;
+            break;
+          }
+        }
+        if (onBoundary) continue;
+      }
       isStatic[f] = true;
     }
     return isStatic;
@@ -608,15 +791,15 @@ var DataConverter = class _DataConverter {
     const elDuration = elEnd - elStart;
     for (const anim of element.animations) {
       if (anim.duration <= 0) continue;
-      if (anim.group === "in" && localTime < anim.duration) return true;
-      if (anim.group === "out" && localTime > elDuration - anim.duration) return true;
+      if (anim.group === "in" && localTime >= 0 && localTime < anim.duration) return true;
+      if (anim.group === "out" && localTime >= 0 && localTime > elDuration - anim.duration) return true;
       if (anim.group === "emphasis") return true;
     }
     return false;
   }
   static _hasActiveKeyframes(element, timeSec) {
     if (!element.keyframeTracks || element.keyframeTracks.length === 0) return false;
-    const localTime = timeSec - element.startTime;
+    const localTime = timeSec - (element.startTime + element.trimStart);
     for (const track of element.keyframeTracks) {
       if (!track.enabled || track.keyframes.length < 2) continue;
       const first = track.keyframes[0].time;
@@ -657,7 +840,20 @@ var DataConverter = class _DataConverter {
       "blur-shimmer",
       "drop-bounce",
       "word-slide-up",
-      "skew-in"
+      "skew-in",
+      // TikTok 分页高亮（outDuration=0，需整段持续渲染）
+      "tiktok-highlight",
+      "tiktok-pop",
+      "tiktok-glow",
+      "tiktok",
+      // inType 值，覆盖 custom preset 手动设置的场景
+      // 新增预设（2026-03-12）
+      "char-slide-up",
+      "char-bounce-in",
+      "char-zoom-in",
+      "char-flip-in",
+      "char-vibrate",
+      "rainbow-shimmer"
     ]);
   }
   static _hasActiveCaptionAnimation(captionTimesMs, captionAnimation, timeSec) {
@@ -666,7 +862,7 @@ var DataConverter = class _DataConverter {
     const timeMs = timeSec * 1e3;
     const inDur = captionAnimation.inDuration || 0;
     const outDur = captionAnimation.outDuration || 0;
-    const isContinuous = _DataConverter.CONTINUOUS_CAPTION_PRESETS.has(captionAnimation.preset);
+    const isContinuous = _DataConverter.CONTINUOUS_CAPTION_PRESETS.has(captionAnimation.preset) || captionAnimation.inType != null && _DataConverter.CONTINUOUS_CAPTION_PRESETS.has(captionAnimation.inType);
     const hasAnimation = inDur > 0 || outDur > 0 || isContinuous;
     if (!hasAnimation) return false;
     for (const { startMs, endMs } of captionTimesMs) {
@@ -885,12 +1081,45 @@ var ServerVideoFrameExtractor = class {
       onProgress?.(Math.min(i + batchSize, toLoad.length), toLoad.length);
     }
   }
+  /**
+   * 并行路径专用：提取帧到持久磁盘目录，不加载到内存，不清理目录。
+   * 返回 Map<cacheKey, absoluteFilePath>，供 Worker Threads 独立读取。
+   */
+  async batchPreExtractToDisk(videoPath, cacheKeys, mediaTimes, outputDir, onProgress) {
+    if (mediaTimes.length === 0) return /* @__PURE__ */ new Map();
+    const needed = this.filterUncachedFrames(cacheKeys, mediaTimes);
+    if (needed.length === 0) return /* @__PURE__ */ new Map();
+    const firstTime = needed[0].mediaTime;
+    const lastTime = needed[needed.length - 1].mediaTime;
+    const decodeFps = this.calculateDecodeFps(needed);
+    console.log(
+      `[VideoExtractor] Disk batch: ${needed.length} frames, ${firstTime.toFixed(2)}s\u2013${lastTime.toFixed(2)}s, decode@${decodeFps}fps`
+    );
+    await this.extractFramesToDir(videoPath, firstTime, lastTime, decodeFps, outputDir);
+    const files = fs.readdirSync(outputDir).filter((f) => f.endsWith(".jpg")).sort();
+    const toLoad = this.matchFramesToFiles(files, needed, firstTime, decodeFps);
+    const diskPaths = /* @__PURE__ */ new Map();
+    for (const { file, cacheKey } of toLoad) {
+      diskPaths.set(cacheKey, path.join(outputDir, file));
+      onProgress?.(diskPaths.size, toLoad.length);
+    }
+    console.log(`[VideoExtractor] Disk batch done: ${diskPaths.size}/${needed.length} frames`);
+    return diskPaths;
+  }
   cleanupBatchDir(dir) {
     try {
       for (const f of fs.readdirSync(dir)) {
         fs.unlinkSync(path.join(dir, f));
       }
       fs.rmdirSync(dir);
+    } catch {
+    }
+  }
+  async preloadFrameFromDisk(cacheKey, diskPath) {
+    if (this.frameCache.has(cacheKey)) return;
+    try {
+      const img = await loadImage2(diskPath);
+      this.addToCache(cacheKey, img);
     } catch {
     }
   }
@@ -967,6 +1196,12 @@ var ServerAudioExtractor = class {
       const delayMs = Math.round(track.startTime * 1e3);
       if (delayMs > 0) {
         filters.push(`adelay=${delayMs}|${delayMs}`);
+      }
+      if (track.crossfadeZones && track.crossfadeZones.length > 0) {
+        for (const zone of track.crossfadeZones) {
+          const t = zone.role === "source" ? "out" : "in";
+          filters.push(`afade=t=${t}:st=${zone.zoneStartSec}:d=${zone.zoneDurSec}`);
+        }
       }
       const duration = track.endTime - track.startTime;
       filters.push(`atrim=duration=${duration}`);
@@ -1361,7 +1596,8 @@ var EXIT_ANIMATION_TYPES = /* @__PURE__ */ new Set([
   "foldOut",
   "curtainOut",
   "dissolveOut",
-  "bounceOut"
+  "bounceOut",
+  "morphOut"
 ]);
 var ANIMATION_AFFECTED_PROPERTIES = {
   fadeIn: ["opacity"],
@@ -1390,6 +1626,7 @@ var ANIMATION_AFFECTED_PROPERTIES = {
   expandIn: ["opacity", "scaleX", "scaleY"],
   collapseOut: ["opacity", "scaleX", "scaleY"],
   morphIn: ["opacity", "scaleX", "scaleY"],
+  morphOut: ["opacity", "scaleX", "scaleY"],
   rotateIn: ["opacity", "scaleX", "scaleY", "rotation"],
   rotateOut: ["opacity", "scaleX", "scaleY", "rotation"],
   spiralIn: ["opacity", "scaleX", "scaleY", "rotation"],
@@ -1423,7 +1660,8 @@ var LOOP_ANIMATION_TYPES = /* @__PURE__ */ new Set([
   "tada",
   "glow",
   "glitch",
-  "float"
+  "float",
+  "headShake"
 ]);
 var TEXT_ANIMATION_TYPES = /* @__PURE__ */ new Set([
   "typewriter",
@@ -2437,6 +2675,22 @@ var handleGlitch = (props, animation, clamped, _raw, ctx) => {
     props.opacity = ctx.baseOpacity * (1 - easedGlitch);
   }
 };
+var handleMorphOut = (props, _anim, clamped, _raw, ctx) => {
+  const easedMorph = ctx.ease(clamped, easeInOutQuad);
+  let scaleX, scaleY;
+  if (clamped < 0.5) {
+    const p = clamped * 2;
+    scaleX = ctx.baseScaleX * (1 - 0.2 * p);
+    scaleY = ctx.baseScaleY * (1 + 0.2 * p);
+  } else {
+    const p = (clamped - 0.5) * 2;
+    scaleX = ctx.baseScaleX * (0.8 - 0.8 * p);
+    scaleY = ctx.baseScaleY * (1.2 - 1.2 * p);
+  }
+  props.scaleX = scaleX;
+  props.scaleY = scaleY;
+  props.opacity = ctx.baseOpacity * (1 - easedMorph);
+};
 var handleDissolveOut = (props, _anim, clamped, _raw, ctx) => {
   const eased = ctx.ease(clamped, linear);
   props[ANIM_PROPS.DISSOLVE_PROGRESS] = eased;
@@ -2517,6 +2771,23 @@ var handleShake = (props, animation, clamped) => {
   const factor = interpolate(clamped, [0, 0.2, 0.4, 0.6, 0.8, 1], [0, 0.8, -0.6, 0.4, -0.2, 0]);
   props.x = baseX + shakeIntensity * factor;
 };
+var handleHeadShake = (props, animation, clamped) => {
+  const intensity = animation.properties?.intensity ?? 10;
+  const baseX = props.x;
+  const baseRotation = props.rotation ?? 0;
+  const xFactor = interpolate(
+    clamped,
+    [0, 0.065, 0.185, 0.315, 0.435, 0.5, 1],
+    [0, -1, 1, -0.5, 0.5, 0, 0]
+  );
+  const rotFactor = interpolate(
+    clamped,
+    [0, 0.065, 0.185, 0.315, 0.435, 0.5, 1],
+    [0, -0.5, 0.5, -0.25, 0.25, 0, 0]
+  );
+  props.x = baseX + xFactor * intensity;
+  props.rotation = baseRotation + rotFactor * 8;
+};
 var ANIMATION_HANDLERS = {
   // 入场/出场 复杂动画
   slideIn: handleSlideIn,
@@ -2530,6 +2801,7 @@ var ANIMATION_HANDLERS = {
   morphIn: handleMorphIn,
   glitch: handleGlitch,
   dissolveOut: handleDissolveOut,
+  morphOut: handleMorphOut,
   // Emphasis 计算器动画
   pulse: handlePulse,
   swing: handleSwing,
@@ -2542,7 +2814,8 @@ var ANIMATION_HANDLERS = {
   glow: handleGlow,
   typewriter: handleTypewriter,
   // Loop 动画
-  shake: handleShake
+  shake: handleShake,
+  headShake: handleHeadShake
 };
 
 // ../../shared/keyframes/KeyframeInterpolator.ts
@@ -2746,6 +3019,12 @@ function applyInterpolatedProperties(props, interpolated, blockedProperties) {
       props[key] = interpolated[key];
     }
   }
+  const maskKeys = ["maskX", "maskY", "maskScaleX", "maskScaleY", "maskRotation"];
+  for (const key of maskKeys) {
+    if (interpolated[key] !== void 0) {
+      props[key] = interpolated[key];
+    }
+  }
 }
 
 // ../../server/src/renderer/animationUtils.ts
@@ -2909,6 +3188,79 @@ var TRANSITION_REGISTRY = {
     defaultEasing: "linear",
     category: "creative",
     i18nKey: "transition_glitch"
+  },
+  // ─── 新增 ───
+  spin: {
+    blendFn: blendSpin,
+    defaultEasing: "inOutCubic",
+    category: "creative",
+    i18nKey: "transition_spin"
+  },
+  flash: {
+    blendFn: blendFlash,
+    defaultEasing: "inOutQuad",
+    category: "basic",
+    i18nKey: "transition_flash"
+  },
+  crossZoom: {
+    blendFn: blendCrossZoom,
+    defaultEasing: "inOutCubic",
+    category: "creative",
+    i18nKey: "transition_cross_zoom"
+  },
+  whipPan: {
+    blendFn: blendWhipPan,
+    defaultEasing: "inOutQuad",
+    category: "slide",
+    i18nKey: "transition_whip_pan"
+  },
+  heartWipe: {
+    blendFn: blendHeartWipe,
+    defaultEasing: "outCubic",
+    category: "creative",
+    i18nKey: "transition_heart_wipe"
+  },
+  split: {
+    blendFn: blendSplit,
+    defaultEasing: "outCubic",
+    category: "creative",
+    i18nKey: "transition_split"
+  },
+  blinds: {
+    blendFn: blendBlinds,
+    defaultEasing: "inOutQuad",
+    category: "wipe",
+    i18nKey: "transition_blinds"
+  },
+  bounce: {
+    blendFn: blendBounce,
+    defaultEasing: "linear",
+    category: "slide",
+    i18nKey: "transition_bounce"
+  },
+  diagonalWipe: {
+    blendFn: blendDiagonalWipe,
+    defaultEasing: "outCubic",
+    category: "wipe",
+    i18nKey: "transition_diagonal_wipe"
+  },
+  diamondWipe: {
+    blendFn: blendDiamondWipe,
+    defaultEasing: "outCubic",
+    category: "wipe",
+    i18nKey: "transition_diamond_wipe"
+  },
+  starWipe: {
+    blendFn: blendStarWipe,
+    defaultEasing: "outCubic",
+    category: "creative",
+    i18nKey: "transition_star_wipe"
+  },
+  swap: {
+    blendFn: blendSwap,
+    defaultEasing: "inOutCubic",
+    category: "creative",
+    i18nKey: "transition_swap"
   }
 };
 var DERIVED_TRANSITION_TYPES = new Set(
@@ -3130,6 +3482,240 @@ function blendZoom(ctx, sourceCanvas, targetCanvas, width, height, progress, opt
     ctx.restore();
   }
 }
+function blendSpin(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  const cx = width / 2;
+  const cy = height / 2;
+  const srcAngle = p * Math.PI;
+  const srcScale = 1 - p * 0.5;
+  const srcCos = Math.cos(srcAngle) * srcScale;
+  const srcSin = Math.sin(srcAngle) * srcScale;
+  ctx.save();
+  ctx.globalAlpha = 1 - p;
+  ctx.transform(1, 0, 0, 1, cx, cy);
+  ctx.transform(srcCos, srcSin, -srcSin, srcCos, 0, 0);
+  ctx.transform(1, 0, 0, 1, -cx, -cy);
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx.restore();
+  const tgtAngle = -Math.PI * (1 - p);
+  const tgtScale = 0.5 + p * 0.5;
+  const tgtCos = Math.cos(tgtAngle) * tgtScale;
+  const tgtSin = Math.sin(tgtAngle) * tgtScale;
+  ctx.save();
+  ctx.globalAlpha = p;
+  ctx.transform(1, 0, 0, 1, cx, cy);
+  ctx.transform(tgtCos, tgtSin, -tgtSin, tgtCos, 0, 0);
+  ctx.transform(1, 0, 0, 1, -cx, -cy);
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.restore();
+}
+function blendFlash(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  const intensity = 1 - Math.abs(p * 2 - 1);
+  ctx.save();
+  ctx.globalAlpha = 1 - p;
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = p;
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.restore();
+  if (ctx.globalCompositeOperation !== void 0 && ctx.fillRect && ctx.fillStyle !== void 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = intensity * 0.85;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+}
+function blendCrossZoom(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress);
+}
+function blendWhipPan(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
+  ctx.drawImage(sourceCanvas, -width * p, 0, width, height);
+  ctx.drawImage(targetCanvas, width * (1 - p), 0, width, height);
+  ctx.restore();
+}
+function drawHeartPath(ctx, s) {
+  if (ctx.bezierCurveTo) {
+    ctx.moveTo(0, s * 0.6);
+    ctx.bezierCurveTo(-s * 0.1, s * 0.3, -s * 0.85, s * 0.1, -s * 0.85, -s * 0.2);
+    ctx.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.35, -s * 0.8, 0, -s * 0.45);
+    ctx.bezierCurveTo(s * 0.35, -s * 0.8, s * 0.85, -s * 0.6, s * 0.85, -s * 0.2);
+    ctx.bezierCurveTo(s * 0.85, s * 0.1, s * 0.1, s * 0.3, 0, s * 0.6);
+  } else {
+    const N = 40;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N * Math.PI * 2;
+      const px = s * 0.053 * 16 * Math.pow(Math.sin(t), 3);
+      const py = -s * 0.053 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+  }
+}
+function blendHeartWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  if (p <= 0) return;
+  const diagonal = Math.sqrt(width * width + height * height);
+  const maxS = diagonal / 0.9;
+  const s = maxS * p;
+  if (s < 0.5) return;
+  ctx.save();
+  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
+  ctx.beginPath();
+  drawHeartPath(ctx, s);
+  ctx.closePath();
+  ctx.clip();
+  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.restore();
+}
+function blendSplit(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  const halfH = height / 2;
+  const offset = halfH * p;
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, halfH);
+  ctx.clip();
+  ctx.drawImage(sourceCanvas, 0, -offset, width, height);
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, halfH, width, halfH);
+  ctx.clip();
+  ctx.drawImage(sourceCanvas, 0, offset, width, height);
+  ctx.restore();
+}
+function blendBlinds(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  const sliceCount = 8;
+  const sliceH = height / sliceCount;
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  for (let i = 0; i < sliceCount; i++) {
+    const y = i * sliceH;
+    const revealH = sliceH * p;
+    if (revealH < 0.5) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, y, width, revealH);
+    ctx.clip();
+    ctx.drawImage(targetCanvas, 0, 0, width, height);
+    ctx.restore();
+  }
+}
+function blendBounce(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  let t = p;
+  if (t < 1 / 2.75) {
+    t = 7.5625 * t * t;
+  } else if (t < 2 / 2.75) {
+    t = 7.5625 * (t -= 1.5 / 2.75) * t + 0.75;
+  } else if (t < 2.5 / 2.75) {
+    t = 7.5625 * (t -= 2.25 / 2.75) * t + 0.9375;
+  } else {
+    t = 7.5625 * (t -= 2.625 / 2.75) * t + 0.984375;
+  }
+  const offsetX = width * (1 - t);
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
+  ctx.drawImage(targetCanvas, offsetX, 0, width, height);
+  ctx.restore();
+}
+function blendDiagonalWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  if (p <= 0) return;
+  const diagonal = width + height;
+  const linePos = -height + diagonal * p;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(linePos, 0);
+  ctx.lineTo(linePos + height, height);
+  ctx.lineTo(width, height);
+  ctx.lineTo(width, 0);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.restore();
+}
+function blendDiamondWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  if (p <= 0) return;
+  const cx = width / 2;
+  const cy = height / 2;
+  const maxR = Math.sqrt(cx * cx + cy * cy);
+  const r = maxR * p;
+  ctx.save();
+  ctx.transform(1, 0, 0, 1, cx, cy);
+  ctx.beginPath();
+  ctx.moveTo(0, -r);
+  ctx.lineTo(r, 0);
+  ctx.lineTo(0, r);
+  ctx.lineTo(-r, 0);
+  ctx.closePath();
+  ctx.clip();
+  ctx.transform(1, 0, 0, 1, -cx, -cy);
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.restore();
+}
+function drawStarPath(ctx, outerR) {
+  const innerR = outerR * 0.382;
+  const points = 5;
+  for (let i = 0; i < points * 2; i++) {
+    const angle = i * Math.PI / points - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+}
+function blendStarWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  if (p <= 0) return;
+  const diagonal = Math.sqrt(width * width + height * height);
+  const maxR = diagonal / 2 / 0.382;
+  const r = maxR * p;
+  ctx.save();
+  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
+  ctx.beginPath();
+  drawStarPath(ctx, r);
+  ctx.closePath();
+  ctx.clip();
+  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx.drawImage(targetCanvas, 0, 0, width, height);
+  ctx.restore();
+}
+function blendSwap(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  const tgtScale = 0.3 + p * 0.7;
+  const tgtX = width * (1 - tgtScale) * (1 - p);
+  const tgtY = height * (1 - tgtScale) * (1 - p);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, p * 2);
+  ctx.drawImage(targetCanvas, tgtX, tgtY, width * tgtScale, height * tgtScale);
+  ctx.restore();
+  const srcScale = 1 - p * 0.7;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - p * 2);
+  ctx.drawImage(sourceCanvas, 0, 0, width * srcScale, height * srcScale);
+  ctx.restore();
+}
 function applyTransitionBlend(type, ctx, sourceCanvas, targetCanvas, width, height, progress) {
   const desc = TRANSITION_REGISTRY[type];
   if (desc) {
@@ -3137,6 +3723,19 @@ function applyTransitionBlend(type, ctx, sourceCanvas, targetCanvas, width, heig
   } else {
     blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress);
   }
+}
+
+// ../../shared/transitions/transitionEasings.ts
+function applyTransitionEasing(progress, type, easing) {
+  const p = Math.max(0, Math.min(1, progress));
+  if (easing) {
+    return resolveEasing(easing)(p);
+  }
+  const defaultEasing = DERIVED_TRANSITION_DEFAULT_EASING[type];
+  if (defaultEasing) {
+    return EASING[defaultEasing](p);
+  }
+  return p;
 }
 
 // ../../shared/animations/effectApplicator.ts
@@ -3377,6 +3976,169 @@ function wrapTextByGrapheme(text, maxWidth, ctx, spacingPx = 0) {
     }
   }
   return wrappedLines;
+}
+
+// ../../shared/mask/maskPaths.ts
+var TWO_PI = Math.PI * 2;
+var DEG_TO_RAD = Math.PI / 180;
+function pathRect(ctx) {
+  ctx.rect(-1, -1, 2, 2);
+}
+function pathCircle(ctx) {
+  ctx.arc(0, 0, 1, 0, TWO_PI);
+}
+function pathEllipse(ctx) {
+  if (ctx.ellipse) {
+    ctx.ellipse(0, 0, 1, 1, 0, 0, TWO_PI);
+  } else {
+    ctx.arc(0, 0, 1, 0, TWO_PI);
+  }
+}
+function pathStar(ctx, points, innerRadius) {
+  const n = Math.max(3, Math.round(points));
+  const step = Math.PI / n;
+  const startAngle = -Math.PI / 2;
+  for (let i = 0; i < 2 * n; i++) {
+    const angle = startAngle + i * step;
+    const r = i % 2 === 0 ? 1 : innerRadius;
+    const px = Math.cos(angle) * r;
+    const py = Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+function pathHeart(ctx) {
+  const s = 1.18;
+  if (ctx.bezierCurveTo) {
+    ctx.moveTo(0, s * 0.6);
+    ctx.bezierCurveTo(-s * 0.1, s * 0.3, -s * 0.85, s * 0.1, -s * 0.85, -s * 0.2);
+    ctx.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.35, -s * 0.8, 0, -s * 0.45);
+    ctx.bezierCurveTo(s * 0.35, -s * 0.8, s * 0.85, -s * 0.6, s * 0.85, -s * 0.2);
+    ctx.bezierCurveTo(s * 0.85, s * 0.1, s * 0.1, s * 0.3, 0, s * 0.6);
+  } else {
+    const N = 40;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N * TWO_PI;
+      const px = 0.053 * 16 * Math.pow(Math.sin(t), 3);
+      const py = -0.053 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+  }
+  ctx.closePath();
+}
+function pathPolygon(ctx, sides) {
+  const n = Math.max(3, Math.round(sides));
+  const startAngle = -Math.PI / 2;
+  for (let i = 0; i < n; i++) {
+    const angle = startAngle + i / n * TWO_PI;
+    const px = Math.cos(angle);
+    const py = Math.sin(angle);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+function pathDiamond(ctx) {
+  ctx.moveTo(0, -1);
+  ctx.lineTo(1, 0);
+  ctx.lineTo(0, 1);
+  ctx.lineTo(-1, 0);
+  ctx.closePath();
+}
+function pathCustom(ctx, pathData) {
+  const commands = pathData.match(/[MLCQAZ][^MLCQAZ]*/gi);
+  if (!commands) {
+    ctx.rect(-1, -1, 2, 2);
+    return;
+  }
+  for (const cmd of commands) {
+    const type = cmd[0].toUpperCase();
+    const nums = cmd.slice(1).trim().split(/[\s,]+/).map(Number).filter((n) => !isNaN(n));
+    switch (type) {
+      case "M":
+        if (nums.length >= 2) ctx.moveTo(nums[0], nums[1]);
+        break;
+      case "L":
+        if (nums.length >= 2) ctx.lineTo(nums[0], nums[1]);
+        break;
+      case "C":
+        if (nums.length >= 6 && ctx.bezierCurveTo) {
+          ctx.bezierCurveTo(nums[0], nums[1], nums[2], nums[3], nums[4], nums[5]);
+        }
+        break;
+      case "Q":
+        if (nums.length >= 4) ctx.lineTo(nums[2], nums[3]);
+        break;
+      case "A":
+        break;
+      case "Z":
+        ctx.closePath();
+        break;
+    }
+  }
+  ctx.closePath();
+}
+function drawShapePath(ctx, shape, mask) {
+  switch (shape) {
+    case "rect":
+      pathRect(ctx);
+      break;
+    case "circle":
+      pathCircle(ctx);
+      break;
+    case "ellipse":
+      pathEllipse(ctx);
+      break;
+    case "star":
+      pathStar(ctx, mask.sides ?? 5, mask.innerRadius ?? 0.4);
+      break;
+    case "heart":
+      pathHeart(ctx);
+      break;
+    case "polygon":
+      pathPolygon(ctx, mask.sides ?? 6);
+      break;
+    case "diamond":
+      pathDiamond(ctx);
+      break;
+    case "custom":
+      if (mask.pathData) pathCustom(ctx, mask.pathData);
+      else ctx.rect(-1, -1, 2, 2);
+      break;
+    default:
+      ctx.rect(-1, -1, 2, 2);
+      break;
+  }
+}
+function applyMaskClip(ctx, elementWidth, elementHeight, mask) {
+  if (!mask.enabled) return;
+  const halfW = elementWidth / 2;
+  const halfH = elementHeight / 2;
+  ctx.save();
+  ctx.translate(mask.x, mask.y);
+  if (mask.rotation !== 0) {
+    ctx.rotate(mask.rotation * DEG_TO_RAD);
+  }
+  ctx.scale(halfW * mask.scaleX, halfH * mask.scaleY);
+  ctx.beginPath();
+  if (mask.inverted) {
+    ctx.restore();
+    ctx.beginPath();
+    ctx.rect(-halfW * 2, -halfH * 2, halfW * 4, halfH * 4);
+    ctx.save();
+    ctx.translate(mask.x, mask.y);
+    if (mask.rotation !== 0) ctx.rotate(mask.rotation * DEG_TO_RAD);
+    ctx.scale(halfW * mask.scaleX, halfH * mask.scaleY);
+    drawShapePath(ctx, mask.shapeType, mask);
+    ctx.restore();
+    ctx.clip("evenodd");
+  } else {
+    drawShapePath(ctx, mask.shapeType, mask);
+    ctx.restore();
+    ctx.clip();
+  }
 }
 
 // ../../shared/canvas/canvasDrawUtils.ts
@@ -3734,11 +4496,32 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
   const { width, height, filter, borderRadius = 0 } = params;
   const hasRadius = borderRadius > 0;
   const hasFilter = !!filter && filter !== "none";
+  const hasMask = !!params.maskEnabled && !!params.maskShapeType;
+  const maskMode = hasMask ? params.maskMode ?? "clip" : "clip";
+  const isEffectMask = hasMask && maskMode === "effect";
+  const maskFeather = hasMask && !isEffectMask ? params.maskFeather ?? 0 : 0;
+  const useHardClipMask = hasMask && !isEffectMask && maskFeather <= 0;
   if (hasFilter) {
     try {
       ctx.filter = filter;
     } catch {
     }
+  }
+  if (useHardClipMask) {
+    ctx.save();
+    applyMaskClip(ctx, width, height, {
+      enabled: true,
+      shapeType: params.maskShapeType,
+      x: params.maskX ?? 0,
+      y: params.maskY ?? 0,
+      scaleX: params.maskScaleX ?? 1,
+      scaleY: params.maskScaleY ?? 1,
+      rotation: params.maskRotation ?? 0,
+      inverted: params.maskInverted ?? false,
+      sides: params.maskSides,
+      innerRadius: params.maskInnerRadius,
+      pathData: params.maskPathData
+    });
   }
   if (hasRadius) {
     ctx.save();
@@ -3768,7 +4551,120 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
     } catch {
     }
   }
+  if (isEffectMask) {
+    const effectType = params.maskEffectType ?? "blur";
+    const intensity = params.maskEffectIntensity ?? 50;
+    ctx.save();
+    applyMaskClip(ctx, width, height, {
+      enabled: true,
+      shapeType: params.maskShapeType,
+      x: params.maskX ?? 0,
+      y: params.maskY ?? 0,
+      scaleX: params.maskScaleX ?? 1,
+      scaleY: params.maskScaleY ?? 1,
+      rotation: params.maskRotation ?? 0,
+      inverted: params.maskInverted ?? false,
+      sides: params.maskSides,
+      innerRadius: params.maskInnerRadius,
+      pathData: params.maskPathData
+    });
+    switch (effectType) {
+      case "blur": {
+        const blurPx = Math.max(1, Math.round(intensity * 0.4));
+        try {
+          ctx.filter = `blur(${blurPx}px)`;
+        } catch {
+        }
+        ctx.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
+        break;
+      }
+      case "pixelate":
+      case "mosaic": {
+        const blockSize = Math.max(2, Math.round(intensity * 0.3));
+        const smallW = Math.max(1, Math.floor(width / blockSize));
+        const smallH = Math.max(1, Math.floor(height / blockSize));
+        if (typeof OffscreenCanvas !== "undefined") {
+          const off = new OffscreenCanvas(smallW, smallH);
+          const offCtx = off.getContext("2d");
+          if (offCtx) {
+            offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, smallW, smallH);
+            const prevSmoothing = ctx.imageSmoothingEnabled;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(off, 0, 0, smallW, smallH, -width / 2, -height / 2, width, height);
+            ctx.imageSmoothingEnabled = prevSmoothing;
+          }
+        } else {
+          const prevSmoothing = ctx.imageSmoothingEnabled;
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
+          ctx.imageSmoothingEnabled = prevSmoothing;
+        }
+        break;
+      }
+      case "darken": {
+        const alpha = Math.min(0.9, intensity / 100);
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(-width / 2, -height / 2, width, height);
+        break;
+      }
+      case "brighten": {
+        const alpha = Math.min(0.9, intensity / 100);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillRect(-width / 2, -height / 2, width, height);
+        break;
+      }
+    }
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+    ctx.restore();
+  }
   if (hasRadius) {
+    ctx.restore();
+  }
+  if (hasMask && maskFeather > 0) {
+    const prevComposite = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = "destination-in";
+    try {
+      ctx.filter = `blur(${maskFeather}px)`;
+    } catch {
+    }
+    ctx.save();
+    ctx.translate(params.maskX ?? 0, params.maskY ?? 0);
+    if ((params.maskRotation ?? 0) !== 0) {
+      ctx.rotate((params.maskRotation ?? 0) * Math.PI / 180);
+    }
+    ctx.scale(
+      width / 2 * (params.maskScaleX ?? 1),
+      height / 2 * (params.maskScaleY ?? 1)
+    );
+    ctx.beginPath();
+    const shapeType = params.maskShapeType;
+    switch (shapeType) {
+      case "circle":
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        break;
+      case "rect":
+        ctx.rect(-1, -1, 2, 2);
+        break;
+      case "ellipse":
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        break;
+      default:
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        break;
+    }
+    ctx.restore();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+    ctx.globalCompositeOperation = prevComposite;
+  }
+  if (useHardClipMask) {
     ctx.restore();
   }
 }
@@ -3945,9 +4841,10 @@ var PRESET_SPECS = {
     type: "wordStagger",
     overlap: ANIMATION_SPEEDS.WORD_POP_OVERLAP,
     opacity: { from: 0, to: 1 },
-    scaleX: { from: 0, to: 1, overshoot: ANIMATION_SIZES.WORD_POP_OVERSHOOT },
-    scaleY: { from: 0, to: 1, overshoot: ANIMATION_SIZES.WORD_POP_OVERSHOOT },
-    scaleEasing: "outBack"
+    scaleX: { from: 0.3, to: 1, overshoot: ANIMATION_SIZES.WORD_POP_OVERSHOOT },
+    scaleY: { from: 0.3, to: 1, overshoot: ANIMATION_SIZES.WORD_POP_OVERSHOOT },
+    offsetY: { from: 12, to: 0 },
+    scaleEasing: "springBouncy"
   },
   "glitch": {
     type: "glitch",
@@ -4001,6 +4898,57 @@ var PRESET_SPECS = {
     overlap: 0.3,
     opacity: { from: 0, to: 1 },
     offsetY: { from: 20, to: 0 }
+  },
+  "char-slide-up": {
+    type: "charStagger",
+    overlap: 0.35,
+    opacity: { from: 0, to: 1 },
+    offsetY: { from: 20, to: 0 }
+  },
+  // 从下方弹跳入场（比 drop-bounce 的重力落下更有弹力感）
+  "char-bounce-in": {
+    type: "charStagger",
+    overlap: 0.4,
+    opacity: { from: 0, to: 1 },
+    offsetY: { from: 25, to: 0 },
+    scaleX: { from: 0.3, to: 1 },
+    scaleY: { from: 0.3, to: 1 },
+    scaleEasing: "outBounce"
+  },
+  // 逐字缩放入场（从大到正常，区别于 charScaleIn 的从小到大）
+  "char-zoom-in": {
+    type: "charStagger",
+    overlap: 0.45,
+    opacity: { from: 0, to: 1 },
+    scaleX: { from: 0, to: 1 },
+    scaleY: { from: 0, to: 1 },
+    scaleEasing: "outElastic"
+  },
+  // 逐字 X 轴压缩翻转入场（仅 scaleX，模拟水平翻转）
+  "char-flip-in": {
+    type: "charStagger",
+    overlap: 0.4,
+    opacity: { from: 0, to: 1 },
+    scaleX: { from: 0, to: 1 },
+    scaleEasing: "outBack"
+  },
+  // 逐字独立高频微振（循环）
+  "char-vibrate": {
+    type: "charVibrate",
+    amplitude: 2,
+    frequency: 12,
+    entrance: true
+  },
+  // 彩虹光波扫过文字（循环）
+  "rainbow-shimmer": {
+    type: "charShimmer",
+    speed: 4,
+    waveWidth: 3,
+    saturation: 90,
+    baseLightness: 60,
+    peakLightness: 95,
+    colorSpeed: 2e-4,
+    entrance: true
   },
   "skew-in": {
     type: "charStagger",
@@ -4666,10 +5614,9 @@ function cachedHsl(hue, saturation, lightness) {
   return v;
 }
 var HIGHLIGHT_TRANSITION_MS = 60;
-var WORD_BOUNCE_DURATION_MS = 150;
-var WORD_BOUNCE_AMPLITUDE = 0.08;
+var WORD_BOUNCE_DURATION_MS = 250;
+var WORD_BOUNCE_AMPLITUDE = 0.25;
 var PAGE_CROSSFADE_MS = 80;
-var HIGHLIGHT_BOX_FADE_MS = 100;
 function lerpHexColor(colorA, colorB, t) {
   if (t <= 0) return colorA;
   if (t >= 1) return colorB;
@@ -4777,6 +5724,34 @@ function applyCharShadowLoopSpec(spec, state, ctx) {
   state.charStyles = charStyles;
   if (spec.entrance && ctx.isEntering) state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
 }
+function applyCharVibrateSpec(spec, state, ctx) {
+  const { textLength, currentTimeMs } = ctx;
+  const charStyles = acquireCharStyles(textLength);
+  const t = currentTimeMs * 1e-3 * spec.frequency * Math.PI * 2;
+  for (let i = 0; i < textLength; i++) {
+    charStyles[i].offsetX = Math.sin(t + i * 1.618) * spec.amplitude;
+    charStyles[i].offsetY = Math.cos(t * 0.7 + i * 2.718) * spec.amplitude;
+  }
+  state.charStyles = charStyles;
+  if (spec.entrance && ctx.isEntering) state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+}
+function applyCharShimmerSpec(spec, state, ctx) {
+  const { textLength, currentTimeMs } = ctx;
+  const charStyles = acquireCharStyles(textLength);
+  const period = (textLength + spec.waveWidth * 2) / Math.max(spec.speed, 0.01) * 1e3;
+  const shimmerPos = currentTimeMs % period / period * (textLength + spec.waveWidth * 2) - spec.waveWidth;
+  const hueBase = currentTimeMs * spec.colorSpeed * 360 % 360;
+  const halfWave = spec.waveWidth / 2;
+  for (let i = 0; i < textLength; i++) {
+    const hue = (hueBase + i / Math.max(textLength, 1) * 120) % 360;
+    const dist = Math.abs(i - shimmerPos);
+    const wave = halfWave > 0 ? Math.max(0, 1 - dist / halfWave) : 0;
+    const lightness = spec.baseLightness + (spec.peakLightness - spec.baseLightness) * wave;
+    charStyles[i].fill = cachedHsl(hue, spec.saturation, lightness);
+  }
+  state.charStyles = charStyles;
+  if (spec.entrance && ctx.isEntering) state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+}
 function applyPresetSpec(spec, state, ctx) {
   switch (spec.type) {
     case "loop":
@@ -4799,6 +5774,12 @@ function applyPresetSpec(spec, state, ctx) {
       break;
     case "charShadowLoop":
       applyCharShadowLoopSpec(spec, state, ctx);
+      break;
+    case "charVibrate":
+      applyCharVibrateSpec(spec, state, ctx);
+      break;
+    case "charShimmer":
+      applyCharShimmerSpec(spec, state, ctx);
       break;
   }
 }
@@ -4892,6 +5873,99 @@ var EXIT_HANDLERS = {
   rotateOut(state, p) {
     state.rotation = ANIMATION_SIZES.ROTATE_END_ANGLE * p;
     state.opacity = 1 - p;
+  },
+  "char-fade-out"(state, p, _canvasH, _anim, textLength) {
+    if (textLength === 0) {
+      state.opacity = 1 - p;
+      return;
+    }
+    const charStyles = acquireCharStyles(textLength);
+    const overlap = 0.5;
+    const windowSize = 1 / (textLength * (1 - overlap) + overlap);
+    for (let i = 0; i < textLength; i++) {
+      const ri = textLength - 1 - i;
+      const charStart = ri * (1 - overlap) * windowSize;
+      const charProgress = Math.max(0, Math.min(1, (p - charStart) / windowSize));
+      charStyles[i].charOpacity = 1 - charProgress;
+    }
+    state.charStyles = charStyles;
+  },
+  "char-slide-down"(state, p, _canvasH, _anim, textLength) {
+    if (textLength === 0) {
+      state.opacity = 1 - p;
+      return;
+    }
+    const charStyles = acquireCharStyles(textLength);
+    const overlap = 0.5;
+    const windowSize = 1 / (textLength * (1 - overlap) + overlap);
+    for (let i = 0; i < textLength; i++) {
+      const ri = textLength - 1 - i;
+      const charStart = ri * (1 - overlap) * windowSize;
+      const charProgress = Math.max(0, Math.min(1, (p - charStart) / windowSize));
+      charStyles[i].charOpacity = 1 - charProgress;
+      charStyles[i].offsetY = charProgress * 20;
+    }
+    state.charStyles = charStyles;
+  },
+  "char-scale-out"(state, p, _canvasH, _anim, textLength) {
+    if (textLength === 0) {
+      state.opacity = 1 - p;
+      return;
+    }
+    const charStyles = acquireCharStyles(textLength);
+    const overlap = 0.5;
+    const windowSize = 1 / (textLength * (1 - overlap) + overlap);
+    for (let i = 0; i < textLength; i++) {
+      const ri = textLength - 1 - i;
+      const charStart = ri * (1 - overlap) * windowSize;
+      const charProgress = Math.max(0, Math.min(1, (p - charStart) / windowSize));
+      const v = 1 - charProgress;
+      charStyles[i].charOpacity = v;
+      charStyles[i].charScaleX = v;
+      charStyles[i].charScaleY = v;
+    }
+    state.charStyles = charStyles;
+  },
+  "char-blur-out"(state, p, _canvasH, _anim, textLength) {
+    if (textLength === 0) {
+      state.opacity = 1 - p;
+      return;
+    }
+    const charStyles = acquireCharStyles(textLength);
+    const overlap = 0.5;
+    const windowSize = 1 / (textLength * (1 - overlap) + overlap);
+    for (let i = 0; i < textLength; i++) {
+      const ri = textLength - 1 - i;
+      const charStart = ri * (1 - overlap) * windowSize;
+      const charProgress = Math.max(0, Math.min(1, (p - charStart) / windowSize));
+      charStyles[i].charOpacity = 1 - charProgress;
+      charStyles[i].charBlur = charProgress * ANIMATION_SIZES.CHAR_BLUR_MAX;
+    }
+    state.charStyles = charStyles;
+  },
+  "word-fade-out"(state, p, _canvasH, _anim, textLength, captionText) {
+    if (textLength === 0) {
+      state.opacity = 1 - p;
+      return;
+    }
+    const boundaries = getWordBoundaries(captionText);
+    const wordCount = boundaries.length;
+    if (wordCount === 0) {
+      state.opacity = 1 - p;
+      return;
+    }
+    const charStyles = acquireCharStyles(textLength);
+    const overlap = 0.4;
+    const windowSize = 1 / (wordCount * (1 - overlap) + overlap);
+    let wordIdx = 0;
+    for (let i = 0; i < textLength; i++) {
+      while (wordIdx < boundaries.length - 1 && i >= boundaries[wordIdx]) wordIdx++;
+      const wi = wordCount - 1 - wordIdx;
+      const wordStart = wi * (1 - overlap) * windowSize;
+      const wordProgress = Math.max(0, Math.min(1, (p - wordStart) / windowSize));
+      charStyles[i].charOpacity = 1 - wordProgress;
+    }
+    state.charStyles = charStyles;
   }
 };
 function handleBlurShimmer(state, ctx) {
@@ -4921,12 +5995,31 @@ function handleBlurShimmer(state, ctx) {
 }
 function handleTikTokPage(state, ctx) {
   const pageConfig = ctx.animation.pageConfig ?? {};
-  if (!ctx.wordTimings?.length) {
-    handleKaraoke(state, ctx);
-    return;
+  let wordTimings = ctx.wordTimings;
+  if (!wordTimings?.length) {
+    const words = ctx.captionText.split(/\s+/).filter((w) => w.length > 0);
+    if (words.length === 0) {
+      handleKaraoke(state, ctx);
+      return;
+    }
+    const captionStartMs = ctx.currentTimeMs - ctx.elapsed;
+    const captionDuration = ctx.effectDuration + (ctx.animation.outDuration || 300);
+    const wordDuration = captionDuration / words.length;
+    let charIdx2 = 0;
+    wordTimings = words.map((word, i) => {
+      const startCharIdx = charIdx2;
+      charIdx2 += word.length + (i < words.length - 1 ? 1 : 0);
+      return {
+        word,
+        startMs: captionStartMs + i * wordDuration,
+        endMs: captionStartMs + (i + 1) * wordDuration,
+        charStartIndex: startCharIdx,
+        charEndIndex: startCharIdx + word.length
+      };
+    });
   }
   const pages = groupWordsIntoPages(
-    ctx.wordTimings,
+    wordTimings,
     pageConfig.wordsPerPage ?? 4,
     pageConfig.combineWithinMs ?? 1200
   );
@@ -4963,8 +6056,10 @@ function handleTikTokPage(state, ctx) {
     let p;
     if (entrance === "pop") {
       p = popEasing(t);
-      state.scaleX *= 0.7 + 0.3 * p;
-      state.scaleY *= 0.7 + 0.3 * p;
+      state.scaleX *= 0.5 + 0.5 * p;
+      state.scaleY *= 0.5 + 0.5 * p;
+      state.translateY += (1 - p) * 15;
+      state.opacity *= Math.min(1, t * 3);
     } else if (entrance === "slideUp") {
       p = entranceEasing(t);
       state.translateY += (1 - p) * 20;
@@ -5021,32 +6116,16 @@ function handleTikTokPage(state, ctx) {
     const wordElapsed = ctx.currentTimeMs - activeWord.startMs;
     if (wordElapsed >= 0 && wordElapsed < WORD_BOUNCE_DURATION_MS) {
       const t = wordElapsed / WORD_BOUNCE_DURATION_MS;
-      const scale = 1 + WORD_BOUNCE_AMPLITUDE * (1 - easeOutElastic2(t, 1, 0.5));
+      const elastic = easeOutElastic2(t, 1, 0.4);
+      const scale = 1 + WORD_BOUNCE_AMPLITUDE * (1 - elastic);
+      const offsetY = -8 * (1 - elastic);
       for (let i = activeWordStartCharIdx; i < activeWordEndCharIdx && i < pageGraphemes.length; i++) {
         if (pageGraphemes[i].trim() !== "") {
           charStyles[i].charScaleX = scale;
           charStyles[i].charScaleY = scale;
+          charStyles[i].offsetY = offsetY;
         }
       }
-    }
-  }
-  if (highlightedWordIdx >= 0 && activeWordStartCharIdx >= 0) {
-    const activeWord = activePage.words[highlightedWordIdx];
-    const wordElapsed = ctx.currentTimeMs - activeWord.startMs;
-    const hlRgb = parseHexToRgb(highlightColor);
-    const boxColor = cachedRgba(hlRgb.r, hlRgb.g, hlRgb.b, 0.2);
-    const boxOpacity = wordElapsed < HIGHLIGHT_BOX_FADE_MS ? Math.min(1, wordElapsed / HIGHLIGHT_BOX_FADE_MS) : 1;
-    let boxStart = activeWordStartCharIdx;
-    let boxEnd = activeWordEndCharIdx;
-    while (boxStart < boxEnd && pageGraphemes[boxStart].trim() === "") boxStart++;
-    while (boxEnd > boxStart && pageGraphemes[boxEnd - 1].trim() === "") boxEnd--;
-    if (boxEnd > boxStart) {
-      state.wordHighlightBoxes = [{
-        startCharIdx: boxStart,
-        endCharIdx: boxEnd,
-        color: boxColor,
-        opacity: boxOpacity
-      }];
     }
   }
   state.charStyles = charStyles;
@@ -5088,6 +6167,8 @@ function calculateCaptionAnimationState(currentTimeMs, captionStartMs, captionEn
     elapsed,
     effectDuration,
     currentTimeMs,
+    captionStartMs,
+    captionEndMs,
     captionText: cleanText,
     defaultColor,
     animation,
@@ -5114,7 +6195,7 @@ function calculateCaptionAnimationState(currentTimeMs, captionStartMs, captionEn
   }
   if (isExiting && outType !== "none") {
     const handler = EXIT_HANDLERS[outType];
-    if (handler) handler(state, exitEasing(1 - remaining / outDuration), canvasHeight, animation);
+    if (handler) handler(state, exitEasing(1 - remaining / outDuration), canvasHeight, animation, textLength, cleanText);
   }
   {
     const keys = [preset, inType !== "none" ? inType : void 0];
@@ -5184,7 +6265,7 @@ function batchCharactersByStyle(line, lineStartX, charStyles, globalCharIndexSta
   }
   return batches;
 }
-function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize, fontStyleStr, fontFamily, charSpacingPx = 0) {
+function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize, fontStyleStr, fontFamily, charSpacingPx = 0, fallbackStrokeColor, fallbackStrokeWidth, fallbackShadowColor, fallbackShadowBlur, fallbackShadowOffsetX, fallbackShadowOffsetY) {
   let lastFillStyle = "";
   let lastStrokeStyle = "";
   let lastLineWidth = -1;
@@ -5193,6 +6274,7 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
   ctx.lineJoin = "miter";
   ctx.lineCap = "butt";
   ctx.miterLimit = 4;
+  const hasFallbackShadow = !!(fallbackShadowBlur && fallbackShadowBlur > 0 && fallbackShadowColor);
   function applyStroke(stroke, strokeWidth, text, x, ty) {
     if (stroke !== lastStrokeStyle) {
       ctx.strokeStyle = stroke;
@@ -5203,6 +6285,18 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
       lastLineWidth = strokeWidth;
     }
     ctx.strokeText(text, x, ty);
+  }
+  function applyFallbackShadow() {
+    ctx.shadowBlur = fallbackShadowBlur;
+    ctx.shadowColor = fallbackShadowColor;
+    ctx.shadowOffsetX = fallbackShadowOffsetX ?? 0;
+    ctx.shadowOffsetY = fallbackShadowOffsetY ?? 0;
+  }
+  function clearShadow() {
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "rgba(0,0,0,0)";
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
   }
   for (const batch of batches) {
     if (batch.hidden) continue;
@@ -5234,6 +6328,8 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
       if (style.charShadowBlur !== void 0 && style.charShadowBlur > 0) {
         ctx.shadowBlur = style.charShadowBlur;
         ctx.shadowColor = style.charShadowColor || fillColor;
+      } else if (hasFallbackShadow) {
+        applyFallbackShadow();
       }
       if (style.charScaleX !== void 0 || style.charScaleY !== void 0) ctx.scale(style.charScaleX ?? 1, style.charScaleY ?? 1);
       if (style.sweepGradientProgress != null && style.sweepGradientProgress > 0 && style.sweepGradientProgress < 1) {
@@ -5246,7 +6342,9 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
         grad.addColorStop(1, defaultColor);
         ctx.fillStyle = grad;
       }
-      if (style.stroke && style.strokeWidth) applyStroke(style.stroke, style.strokeWidth, text, -batch.width / 2, 0);
+      const strokeC = style.stroke ?? fallbackStrokeColor;
+      const strokeW = style.strokeWidth ?? fallbackStrokeWidth;
+      if (strokeC && strokeW) applyStroke(strokeC, strokeW, text, -batch.width / 2, 0);
       ctx.fillText(text, -batch.width / 2, 0);
       ctx.restore();
       continue;
@@ -5254,13 +6352,21 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
     if (charSpacingPx > 0 && text.length > 1) {
       let cx = startX;
       for (const ch of toGraphemes(text)) {
-        if (style.stroke && style.strokeWidth) applyStroke(style.stroke, style.strokeWidth, ch, cx, y);
+        const strokeC = style.stroke ?? fallbackStrokeColor;
+        const strokeW = style.strokeWidth ?? fallbackStrokeWidth;
+        if (hasFallbackShadow) applyFallbackShadow();
+        if (strokeC && strokeW) applyStroke(strokeC, strokeW, ch, cx, y);
         ctx.fillText(ch, cx, y);
+        if (hasFallbackShadow) clearShadow();
         cx += ctx.measureText(ch).width + charSpacingPx;
       }
     } else {
-      if (style.stroke && style.strokeWidth) applyStroke(style.stroke, style.strokeWidth, text, startX, y);
+      const strokeC = style.stroke ?? fallbackStrokeColor;
+      const strokeW = style.strokeWidth ?? fallbackStrokeWidth;
+      if (hasFallbackShadow) applyFallbackShadow();
+      if (strokeC && strokeW) applyStroke(strokeC, strokeW, text, startX, y);
       ctx.fillText(text, startX, y);
+      if (hasFallbackShadow) clearShadow();
     }
     if (style.underline) {
       const underlineY = Math.round(y + Math.max(1, fontSize * 0.1));
@@ -5527,7 +6633,19 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
         fontSize,
         fontStyleStr,
         fontFamily,
-        captionCharSpacingPx
+        captionCharSpacingPx,
+        // Global stroke fallback: char-level animations route through this path,
+        // bypassing the doStroke block. Without this, CaptionStyle.strokeWidth has
+        // no effect when charStyles is set (e.g. char-slide-up, wave, vibrate…).
+        doStroke ? baseStrokeColor : void 0,
+        doStroke ? baseStrokeWidth : void 0,
+        // Global shadow fallback: the char-by-char path disables ctx shadow before
+        // renderCharBatches, so legacy shadow must be injected here.
+        // Only pass for legacy shadow (not multi-layer — those are rendered separately).
+        hasLegacyShadow ? style.shadowColor || "#000000" : void 0,
+        hasLegacyShadow ? (style.shadowBlur ?? 0) * scaleX : void 0,
+        hasLegacyShadow ? (style.shadowOffsetX ?? 0) * scaleX : void 0,
+        hasLegacyShadow ? (style.shadowOffsetY ?? 0) * scaleY : void 0
       );
       globalCharIndex += lineGraphemeCount;
       y += lineHeightPx;
@@ -6242,7 +7360,13 @@ import * as os3 from "os";
 import * as crypto3 from "crypto";
 import https2 from "https";
 import http2 from "http";
-var FONTS_DIR = path3.resolve(import.meta.dirname, "../../data/fonts");
+var FONTS_DIR = (() => {
+  const primary = path3.resolve(import.meta.dirname, "../../data/fonts");
+  if (fs3.existsSync(primary)) return primary;
+  const cliFallback = path3.resolve(import.meta.dirname, "../data/fonts");
+  if (fs3.existsSync(cliFallback)) return cliFallback;
+  return primary;
+})();
 var SYSTEM_FONTS = /* @__PURE__ */ new Set([
   "Arial",
   "Arial Black",
@@ -6254,37 +7378,45 @@ var SYSTEM_FONTS = /* @__PURE__ */ new Set([
   "Courier New"
 ]);
 var FONT_FALLBACK_MAP = {
-  "Helvetica": "Roboto",
+  Helvetica: "Roboto",
   "Helvetica Neue": "Roboto",
   "Segoe UI": "Roboto",
   "San Francisco": "Roboto",
-  "Garamond": "EB Garamond",
-  "Cambria": "Caladea",
-  "Consolas": "Roboto Mono",
-  "Futura": "Jost",
+  Garamond: "EB Garamond",
+  Cambria: "Caladea",
+  Consolas: "Roboto Mono",
+  Futura: "Jost",
   "Microsoft YaHei": "Noto Sans SC",
   "PingFang SC": "Noto Sans SC",
-  "SimHei": "Noto Sans SC",
-  "SimSun": "Noto Sans SC"
+  SimHei: "Noto Sans SC",
+  SimSun: "Noto Sans SC"
 };
 var BUNDLED_GOOGLE_FONTS = {
-  "Roboto": ["Roboto-Variable.ttf", "Roboto-Italic-Variable.ttf"],
+  Roboto: ["Roboto-Variable.ttf", "Roboto-Italic-Variable.ttf"],
   "Open Sans": ["OpenSans-Variable.ttf"],
-  "Lato": ["Lato-Regular.ttf", "Lato-Bold.ttf"],
-  "Montserrat": ["Montserrat-Variable.ttf"],
-  "Poppins": ["Poppins-Regular.ttf", "Poppins-Bold.ttf"],
-  "Nunito": ["Nunito-Variable.ttf"],
+  Lato: ["Lato-Regular.ttf", "Lato-Bold.ttf"],
+  Montserrat: ["Montserrat-Variable.ttf"],
+  Poppins: ["Poppins-Regular.ttf", "Poppins-Bold.ttf"],
+  Nunito: ["Nunito-Variable.ttf"],
   "Noto Sans": ["NotoSans-Variable.ttf"],
   "Fira Code": ["FiraCode-Variable.ttf"],
   "Dancing Script": ["DancingScript-Variable.ttf"],
-  "Pacifico": ["Pacifico-Regular.ttf"],
-  "Oswald": ["Oswald-Variable.ttf"],
+  Pacifico: ["Pacifico-Regular.ttf"],
+  Oswald: ["Oswald-Variable.ttf"],
   "Bebas Neue": ["BebasNeue-Regular.ttf"],
-  "Playfair Display": ["PlayfairDisplay-Variable.ttf", "PlayfairDisplay-Italic-Variable.ttf"],
+  "Playfair Display": [
+    "PlayfairDisplay-Variable.ttf",
+    "PlayfairDisplay-Italic-Variable.ttf"
+  ],
   "EB Garamond": ["EBGaramond-Variable.ttf", "EBGaramond-Italic-Variable.ttf"],
-  "Caladea": ["Caladea-Regular.ttf", "Caladea-Bold.ttf", "Caladea-Italic.ttf", "Caladea-BoldItalic.ttf"],
+  Caladea: [
+    "Caladea-Regular.ttf",
+    "Caladea-Bold.ttf",
+    "Caladea-Italic.ttf",
+    "Caladea-BoldItalic.ttf"
+  ],
   "Roboto Mono": ["RobotoMono-Variable.ttf"],
-  "Jost": ["Jost-Variable.ttf", "Jost-Italic-Variable.ttf"],
+  Jost: ["Jost-Variable.ttf", "Jost-Italic-Variable.ttf"],
   "Noto Sans SC": ["NotoSansSC-Variable.ttf"]
 };
 var registeredFamilies = /* @__PURE__ */ new Set();
@@ -6314,7 +7446,9 @@ var FontRegistry = class _FontRegistry {
     if (googleFontsRegistered) return;
     googleFontsRegistered = true;
     if (!fs3.existsSync(FONTS_DIR)) {
-      console.warn(`[FontRegistry] Fonts directory not found: ${FONTS_DIR}. Run scripts/download-google-fonts.sh first.`);
+      console.warn(
+        `[FontRegistry] Fonts directory not found: ${FONTS_DIR}. Run scripts/download-google-fonts.sh first.`
+      );
       return;
     }
     let registered = 0;
@@ -6336,7 +7470,9 @@ var FontRegistry = class _FontRegistry {
       }
     }
     let fallbackRegistered = 0;
-    for (const [originalFont, substituteFont] of Object.entries(FONT_FALLBACK_MAP)) {
+    for (const [originalFont, substituteFont] of Object.entries(
+      FONT_FALLBACK_MAP
+    )) {
       const files = BUNDLED_GOOGLE_FONTS[substituteFont];
       if (!files) continue;
       const fontPaths = resolveFontPaths(files);
@@ -6348,7 +7484,9 @@ var FontRegistry = class _FontRegistry {
       } catch {
       }
     }
-    console.log(`[FontRegistry] Google Fonts registered: ${registered} files (${skipped} skipped), fallback aliases: ${fallbackRegistered}`);
+    console.log(
+      `[FontRegistry] Google Fonts registered: ${registered} files (${skipped} skipped), fallback aliases: ${fallbackRegistered}`
+    );
   }
   /**
    * Download and register brand/custom fonts from URLs.
@@ -6375,10 +7513,15 @@ var FontRegistry = class _FontRegistry {
         if (!registeredFamilies.has(font.fontFamily)) {
           FontLibrary.use(font.fontFamily, [tempPath]);
           registeredFamilies.add(font.fontFamily);
-          console.log(`[FontRegistry] Brand font registered: ${font.fontFamily}`);
+          console.log(
+            `[FontRegistry] Brand font registered: ${font.fontFamily}`
+          );
         }
       } catch (err) {
-        console.warn(`[FontRegistry] Failed to download/register brand font "${font.fontFamily}":`, err);
+        console.warn(
+          `[FontRegistry] Failed to download/register brand font "${font.fontFamily}":`,
+          err
+        );
       }
     }
     return tempFiles;
@@ -6485,7 +7628,10 @@ var FontRegistry = class _FontRegistry {
       const protocol = url.startsWith("https") ? https2 : http2;
       const request = protocol.get(url, { timeout: 3e4 }, (response) => {
         if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          _FontRegistry.downloadFile(response.headers.location, destPath).then(resolve3, reject);
+          _FontRegistry.downloadFile(response.headers.location, destPath).then(
+            resolve3,
+            reject
+          );
           return;
         }
         if (response.statusCode !== 200) {
@@ -6897,6 +8043,16 @@ var EFFECT_REGISTRY = {
         keyframeable: true
       },
       {
+        key: "threshold",
+        type: "number",
+        label: "effect_param_threshold",
+        default: 0.5,
+        min: 0,
+        max: 1,
+        step: 0.05,
+        keyframeable: true
+      },
+      {
         key: "speed",
         type: "number",
         label: "effect_param_speed",
@@ -7017,6 +8173,36 @@ var EFFECT_REGISTRY = {
         min: 0,
         max: 2,
         step: 0.05,
+        keyframeable: true
+      },
+      {
+        key: "temperature",
+        type: "number",
+        label: "effect_param_temperature",
+        default: 0,
+        min: -1,
+        max: 1,
+        step: 0.05,
+        keyframeable: true
+      },
+      {
+        key: "tint",
+        type: "number",
+        label: "effect_param_tint",
+        default: 0,
+        min: -1,
+        max: 1,
+        step: 0.05,
+        keyframeable: true
+      },
+      {
+        key: "hue",
+        type: "number",
+        label: "effect_param_hue",
+        default: 0,
+        min: -180,
+        max: 180,
+        step: 1,
         keyframeable: true
       },
       {
@@ -7476,11 +8662,7 @@ var EFFECT_REGISTRY = {
     ],
     fragmentShader: "INVERT_FRAG",
     canvas2dFallback: "applyInvert",
-    renderOrder: RENDER_ORDER.FILTER,
-    animate: (params, t) => {
-      const speed = num(params.speed, 0.5);
-      return { amount: 0.5 + 0.5 * noise2D(t / 1e3 * speed, 70) };
-    }
+    renderOrder: RENDER_ORDER.FILTER
   },
   duotone: {
     type: "duotone",
@@ -8258,7 +9440,7 @@ function hslToRgb(hDeg, s, l) {
   const h = (hDeg % 360 + 360) % 360 / 360;
   const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
   const p = 2 * l - q;
-  const hue2rgb = (t) => {
+  const hue2rgb2 = (t) => {
     if (t < 0) t += 1;
     if (t > 1) t -= 1;
     if (t < 1 / 6) return p + (q - p) * 6 * t;
@@ -8267,9 +9449,9 @@ function hslToRgb(hDeg, s, l) {
     return p;
   };
   return [
-    Math.round(hue2rgb(h + 1 / 3) * 255),
-    Math.round(hue2rgb(h) * 255),
-    Math.round(hue2rgb(h - 1 / 3) * 255)
+    Math.round(hue2rgb2(h + 1 / 3) * 255),
+    Math.round(hue2rgb2(h) * 255),
+    Math.round(hue2rgb2(h - 1 / 3) * 255)
   ];
 }
 function linearize(c) {
@@ -8458,7 +9640,12 @@ var BUILTIN_KEYFRAME_KEYS = /* @__PURE__ */ new Set([
   "contrast",
   "saturation",
   "hue",
-  "blur"
+  "blur",
+  "maskX",
+  "maskY",
+  "maskScaleX",
+  "maskScaleY",
+  "maskRotation"
 ]);
 
 // ../../shared/effects/resolveEffects.ts
@@ -8646,7 +9833,7 @@ var applyWave = (ctx, width, height, params) => {
   for (let y = 0; y < height; y++) {
     const offset = Math.round(amplitude * Math.sin(y / height * frequency * Math.PI * 2 + phase));
     for (let x = 0; x < width; x++) {
-      const srcX = x - offset;
+      const srcX = x + offset;
       if (srcX >= 0 && srcX < width) {
         const srcIdx = (y * width + srcX) * 4;
         const dstIdx = (y * width + x) * 4;
@@ -8725,7 +9912,8 @@ var applyVignette = (ctx, width, height, params) => {
       const dx = (x - cx) / cx;
       const dy = (y - cy) / cy;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const vignette = 1 - Math.max(0, Math.min(1, (dist - radius) / softness)) * intensity;
+      const t = Math.max(0, Math.min(1, (dist - radius) / softness));
+      const vignette = 1 - t * t * (3 - 2 * t) * intensity;
       const idx = (y * width + x) * 4;
       data[idx] = data[idx] * vignette;
       data[idx + 1] = data[idx + 1] * vignette;
@@ -8737,9 +9925,22 @@ var applyVignette = (ctx, width, height, params) => {
 var applyGlow = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const radius = Math.max(1, num2(params.radius, 5));
+  const threshold = Math.max(0, Math.min(1, num2(params.threshold, 0.5)));
   if (intensity === 0) return;
   const original = ctx.getImageData(0, 0, width, height);
   const origData = new Uint8ClampedArray(original.data);
+  const bright = ctx.createImageData(width, height);
+  const brightData = bright.data;
+  const invRange = 1 / Math.max(1e-3, 1 - threshold);
+  for (let i = 0; i < origData.length; i += 4) {
+    const lum = (origData[i] * 0.2126 + origData[i + 1] * 0.7152 + origData[i + 2] * 0.0722) / 255;
+    const factor = Math.max(0, (lum - threshold) * invRange);
+    brightData[i] = origData[i] * factor;
+    brightData[i + 1] = origData[i + 1] * factor;
+    brightData[i + 2] = origData[i + 2] * factor;
+    brightData[i + 3] = origData[i + 3];
+  }
+  ctx.putImageData(bright, 0, 0);
   applyBoxBlur(ctx, width, height, Math.ceil(radius));
   const blurred = ctx.getImageData(0, 0, width, height);
   const blurData = blurred.data;
@@ -8747,12 +9948,12 @@ var applyGlow = (ctx, width, height, params) => {
     const r = origData[i] / 255;
     const g = origData[i + 1] / 255;
     const b = origData[i + 2] / 255;
-    const br = blurData[i] / 255;
-    const bg = blurData[i + 1] / 255;
-    const bb = blurData[i + 2] / 255;
-    blurData[i] = (r + (1 - (1 - r) * (1 - br) - r) * intensity) * 255;
-    blurData[i + 1] = (g + (1 - (1 - g) * (1 - bg) - g) * intensity) * 255;
-    blurData[i + 2] = (b + (1 - (1 - b) * (1 - bb) - b) * intensity) * 255;
+    const br = blurData[i] / 255 * intensity;
+    const bg = blurData[i + 1] / 255 * intensity;
+    const bb = blurData[i + 2] / 255 * intensity;
+    blurData[i] = clamp2552((1 - (1 - r) * (1 - br)) * 255);
+    blurData[i + 1] = clamp2552((1 - (1 - g) * (1 - bg)) * 255);
+    blurData[i + 2] = clamp2552((1 - (1 - b) * (1 - bb)) * 255);
     blurData[i + 3] = origData[i + 3];
   }
   ctx.putImageData(blurred, 0, 0);
@@ -8776,6 +9977,14 @@ var applySharpen = (ctx, width, height, params) => {
   }
   ctx.putImageData(imageData, 0, 0);
 };
+function hue2rgb(p, q, t) {
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1 / 6) return p + (q - p) * 6 * t;
+  if (t < 1 / 2) return q;
+  if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+  return p;
+}
 var applyColorGrading = (ctx, width, height, params) => {
   const liftR = num2(params.liftR, 0);
   const liftG = num2(params.liftG, 0);
@@ -8783,14 +9992,28 @@ var applyColorGrading = (ctx, width, height, params) => {
   const gamma = Math.max(0.2, num2(params.gamma, 1));
   const gain = Math.max(0, num2(params.gain, 1));
   const saturation = num2(params.saturation, 1);
-  if (liftR === 0 && liftG === 0 && liftB === 0 && gamma === 1 && gain === 1 && saturation === 1) return;
+  const temperature = num2(params.temperature, 0);
+  const tint = num2(params.tint, 0);
+  const hue = num2(params.hue, 0);
+  if (liftR === 0 && liftG === 0 && liftB === 0 && gamma === 1 && gain === 1 && saturation === 1 && temperature === 0 && tint === 0 && hue === 0) return;
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
   const invGamma = 1 / gamma;
+  const hueNorm = hue / 360;
   for (let i = 0; i < data.length; i += 4) {
     let r = data[i] / 255;
     let g = data[i + 1] / 255;
     let b = data[i + 2] / 255;
+    if (temperature !== 0) {
+      r = Math.max(0, Math.min(1, r + temperature * 0.1));
+      g = Math.max(0, Math.min(1, g + temperature * 0.02));
+      b = Math.max(0, Math.min(1, b - temperature * 0.1));
+    }
+    if (tint !== 0) {
+      r = Math.max(0, Math.min(1, r + tint * 0.07));
+      g = Math.max(0, Math.min(1, g - tint * 0.14));
+      b = Math.max(0, Math.min(1, b + tint * 0.07));
+    }
     r = r + liftR * (1 - r);
     g = g + liftG * (1 - g);
     b = b + liftB * (1 - b);
@@ -8805,6 +10028,26 @@ var applyColorGrading = (ctx, width, height, params) => {
       r = lum + (r - lum) * saturation;
       g = lum + (g - lum) * saturation;
       b = lum + (b - lum) * saturation;
+    }
+    if (hue !== 0) {
+      const mx = Math.max(r, g, b);
+      const mn = Math.min(r, g, b);
+      const d = mx - mn;
+      if (d > 1e-4) {
+        const l = (mx + mn) / 2;
+        const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        let h;
+        if (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
+        else if (mx === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        h = (h / 6 + hueNorm) % 1;
+        if (h < 0) h += 1;
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+      }
     }
     data[i] = clamp2552(r * 255);
     data[i + 1] = clamp2552(g * 255);
@@ -8888,7 +10131,7 @@ var applyFilmGrain = (ctx, width, height, params) => {
     const gy = Math.floor(y / size);
     for (let x = 0; x < width; x++) {
       const gx = Math.floor(x / size);
-      const n = (noise2D(gx + seed * 13.7, gy) + 1) * 0.5;
+      const n = deterministicHash(seed, gx, gy);
       const noiseDelta = (n - 0.5) * 2 * amount * 255;
       const idx = (y * width + x) * 4;
       data[idx] = clamp2552(data[idx] + noiseDelta);
@@ -9083,7 +10326,9 @@ var applyHalftone = (ctx, width, height, params) => {
       const srcIdx = (y * width + x) * 4;
       const lum = (src[srcIdx] * 0.299 + src[srcIdx + 1] * 0.587 + src[srcIdx + 2] * 0.114) / 255;
       const r = 1 - lum;
-      const mask = dist <= r ? 255 : 0;
+      const edge = 1.5 / halfDot;
+      const st = Math.max(0, Math.min(1, (dist - (r - edge)) / (2 * edge)));
+      const mask = Math.round((1 - st * st * (3 - 2 * st)) * 255);
       const dstIdx = srcIdx;
       dst[dstIdx] = mask;
       dst[dstIdx + 1] = mask;
@@ -9143,34 +10388,36 @@ var applySpherize = (ctx, width, height, params) => {
 };
 var applyThermal = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.8)));
+  const thermalShift = num2(params._thermalShift, 0.5);
   if (intensity === 0) return;
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+    const shifted = Math.max(0, Math.min(1, lum + (thermalShift - 0.5) * 0.4));
     let tr, tg, tb;
-    if (lum < 0.2) {
-      const t = lum / 0.2;
+    if (shifted < 0.2) {
+      const t = shifted / 0.2;
       tr = 0;
       tg = 0;
       tb = t;
-    } else if (lum < 0.4) {
-      const t = (lum - 0.2) / 0.2;
+    } else if (shifted < 0.4) {
+      const t = (shifted - 0.2) / 0.2;
       tr = t;
       tg = 0;
       tb = 1;
-    } else if (lum < 0.6) {
-      const t = (lum - 0.4) / 0.2;
+    } else if (shifted < 0.6) {
+      const t = (shifted - 0.4) / 0.2;
       tr = 1;
       tg = 0;
       tb = 1 - t;
-    } else if (lum < 0.8) {
-      const t = (lum - 0.6) / 0.2;
+    } else if (shifted < 0.8) {
+      const t = (shifted - 0.6) / 0.2;
       tr = 1;
       tg = t;
       tb = 0;
     } else {
-      const t = (lum - 0.8) / 0.2;
+      const t = (shifted - 0.8) / 0.2;
       tr = 1;
       tg = 1;
       tb = t;
@@ -9379,21 +10626,55 @@ var applyLensFlare = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.6)));
   const posX = num2(params.posX, 0.5) * width;
   const posY = num2(params.posY, 0.3) * height;
+  const numRays = Math.max(4, Math.round(num2(params.rays, 6)));
+  const seed = num2(params._seed, 0);
   if (intensity === 0) return;
+  const maxDim = Math.max(width, height);
   ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = intensity * 0.6;
-  ctx.fillStyle = "rgba(255, 240, 200, 1)";
+  ctx.globalCompositeOperation = "lighter";
+  const glowR = maxDim * 0.8;
+  const glowN = glowR / maxDim;
+  const glowGrad = ctx.createRadialGradient(posX, posY, 0, posX, posY, glowR);
+  glowGrad.addColorStop(0, `rgba(255,243,204,${intensity.toFixed(3)})`);
+  glowGrad.addColorStop(0.33, `rgba(255,243,204,${(intensity * Math.exp(-0.33 * glowN * 6)).toFixed(3)})`);
+  glowGrad.addColorStop(0.67, `rgba(255,243,204,${(intensity * Math.exp(-0.67 * glowN * 6)).toFixed(3)})`);
+  glowGrad.addColorStop(1, `rgba(255,243,204,0)`);
+  ctx.fillStyle = glowGrad;
+  ctx.fillRect(0, 0, width, height);
+  const rayLen = maxDim * 0.8;
+  const raySegments = 10;
+  ctx.strokeStyle = "rgba(255,204,128,1)";
+  for (let i = 0; i < numRays; i++) {
+    const rayAngle = i * Math.PI * 2 / numRays + seed * 0.5;
+    const dx = Math.cos(rayAngle), dy = Math.sin(rayAngle);
+    for (let s = 0; s < raySegments; s++) {
+      const t0 = s / raySegments, t1 = (s + 1) / raySegments;
+      const alpha = intensity * 0.6 * Math.exp(-t0 * (rayLen / maxDim) * 3);
+      if (alpha < 4e-3) break;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = Math.max(0.5, 2.5 * (1 - t0 * 0.8));
+      ctx.beginPath();
+      ctx.moveTo(posX + dx * t0 * rayLen, posY + dy * t0 * rayLen);
+      ctx.lineTo(posX + dx * t1 * rayLen, posY + dy * t1 * rayLen);
+      ctx.stroke();
+    }
+  }
+  const ghostX = width - posX, ghostY = height - posY;
+  const ghostR = maxDim * 0.6;
+  const ghostN = ghostR / maxDim;
+  const ghostGrad = ctx.createRadialGradient(ghostX, ghostY, 0, ghostX, ghostY, ghostR);
+  ghostGrad.addColorStop(0, `rgba(128,178,255,${(intensity * 0.3).toFixed(3)})`);
+  ghostGrad.addColorStop(0.33, `rgba(128,178,255,${(intensity * 0.3 * Math.exp(-0.33 * ghostN * 8)).toFixed(3)})`);
+  ghostGrad.addColorStop(0.67, `rgba(128,178,255,${(intensity * 0.3 * Math.exp(-0.67 * ghostN * 8)).toFixed(3)})`);
+  ghostGrad.addColorStop(1, `rgba(128,178,255,0)`);
+  ctx.fillStyle = ghostGrad;
+  ctx.fillRect(0, 0, width, height);
+  ctx.globalAlpha = intensity * 0.15;
+  ctx.strokeStyle = "rgba(204,128,255,1)";
+  ctx.lineWidth = maxDim * 0.02;
   ctx.beginPath();
-  ctx.arc(posX, posY, 30, 0, Math.PI * 2);
-  ctx.fill();
-  const ghostX = width - posX;
-  const ghostY = height - posY;
-  ctx.globalAlpha = intensity * 0.2;
-  ctx.fillStyle = "rgba(100, 150, 255, 1)";
-  ctx.beginPath();
-  ctx.arc(ghostX, ghostY, 20, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.arc(posX, posY, maxDim * 0.3, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 };
 var applyLightLeak = (ctx, width, height, params) => {
@@ -9403,80 +10684,136 @@ var applyLightLeak = (ctx, width, height, params) => {
   const colorB = Math.max(0, Math.min(1, num2(params.colorB, 0.2)));
   const seed = num2(params._seed, 0);
   if (intensity === 0) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = intensity * 0.5;
-  const cx = width * (0.5 + Math.sin(seed * 0.7) * 0.3);
-  const cy = height * (0.5 + Math.cos(seed * 0.5) * 0.3);
+  const maxDim = Math.max(width, height);
   const r = Math.round(colorR * 255);
   const g = Math.round(colorG * 255);
   const b = Math.round(colorB * 255);
-  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 1)`;
-  ctx.beginPath();
-  ctx.arc(cx, cy, Math.max(width, height) * 0.4, 0, Math.PI * 2);
-  ctx.fill();
+  const makeGrad = (cx, cy, radius, alpha) => {
+    const n = radius / maxDim;
+    const a1 = alpha * Math.exp(-0.33 * n * 2.5);
+    const a2 = alpha * Math.exp(-0.67 * n * 2.5);
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${alpha.toFixed(3)})`);
+    grad.addColorStop(0.33, `rgba(${r},${g},${b},${a1.toFixed(3)})`);
+    grad.addColorStop(0.67, `rgba(${r},${g},${b},${a2.toFixed(3)})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    return grad;
+  };
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 1;
+  const cx1 = width * (0.5 + Math.sin(seed * 0.7) * 0.3);
+  const cy1 = height * (0.5 + Math.cos(seed * 0.5) * 0.3);
+  ctx.fillStyle = makeGrad(cx1, cy1, maxDim * 1.5, intensity);
+  ctx.fillRect(0, 0, width, height);
+  const cx2 = width * (0.5 - Math.sin(seed * 0.5 + 1) * 0.4);
+  const cy2 = height * (0.5 - Math.cos(seed * 0.3 + 2) * 0.3);
+  ctx.fillStyle = makeGrad(cx2, cy2, maxDim * 1.2, intensity * 0.5);
+  ctx.fillRect(0, 0, width, height);
   ctx.restore();
 };
 var applyRain = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
-  const seed = Math.floor(num2(params._seed, 0));
+  const seed = num2(params._seed, 0);
   const angle = num2(params.angle, 10) * Math.PI / 180;
   const dropLength = num2(params.dropLength, 15);
   if (intensity === 0) return;
+  const sa = Math.sin(angle), ca = Math.cos(angle);
   ctx.save();
-  ctx.globalAlpha = intensity * 0.6;
-  ctx.strokeStyle = "rgba(200, 210, 230, 0.6)";
-  ctx.lineWidth = 1;
-  const count = Math.round(intensity * 200);
-  for (let i = 0; i < count; i++) {
-    const h = deterministicHash(seed, i, 0);
-    const h2 = deterministicHash(seed, i, 1);
-    const x = h * width;
-    const y = h2 * height;
-    const dx = Math.sin(angle) * dropLength;
-    const dy = Math.cos(angle) * dropLength;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + dx, y + dy);
-    ctx.stroke();
+  ctx.globalCompositeOperation = "lighter";
+  for (let layer = 0; layer < 3; layer++) {
+    const scale = 1 + layer * 0.5;
+    const speed = 1 + layer * 0.3;
+    const time = seed * speed;
+    const cellW = Math.round((12 + layer * 8) * scale);
+    const cellH = dropLength * scale;
+    const layerBright = 0.4 + layer * 0.1;
+    const yTotal = time * 200;
+    const yFrac = (yTotal % cellH + cellH) % cellH;
+    const yShift = Math.floor(yTotal / cellH);
+    const margin = Math.ceil(Math.abs(sa) * height) + cellW;
+    const cols = Math.ceil((width + margin) / cellW) + 1;
+    const rows = Math.ceil(height / cellH) + 1;
+    ctx.globalAlpha = Math.min(1, layerBright * intensity);
+    ctx.strokeStyle = "rgba(178,191,217,1)";
+    ctx.lineWidth = Math.max(0.5, 1.5 - layer * 0.3);
+    for (let row = -1; row <= rows; row++) {
+      const absRow = row + yShift;
+      for (let col = 0; col < cols; col++) {
+        const h = deterministicHash(layer * 7 + 3, col, absRow);
+        if (h >= intensity * 0.3) continue;
+        const dropFrac = deterministicHash(layer * 5, col, absRow + 1);
+        const rx = (col - 1) * cellW + dropFrac * cellW;
+        const ry = row * cellH + yFrac;
+        const sx = rx - sa * ry;
+        const sy = ry;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + sa * cellH * 0.8, sy + ca * cellH * 0.8);
+        ctx.stroke();
+      }
+    }
   }
   ctx.restore();
 };
 var applySnow = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
-  const seed = Math.floor(num2(params._seed, 0));
+  const seed = num2(params._seed, 0);
   const flakeSize = Math.max(1, Math.min(5, num2(params.flakeSize, 2)));
   if (intensity === 0) return;
   ctx.save();
-  ctx.globalAlpha = intensity * 0.8;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-  const count = Math.round(intensity * 150);
-  for (let i = 0; i < count; i++) {
-    const x = deterministicHash(seed, i, 0) * width;
-    const y = deterministicHash(seed, i, 1) * height;
-    const size = (deterministicHash(seed, i, 2) * 0.5 + 0.5) * flakeSize;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fill();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = "rgba(255,255,255,1)";
+  for (let layer = 0; layer < 4; layer++) {
+    const scale = 1.5 + layer * 0.8;
+    const speed = 30 + layer * 15;
+    const drift = Math.sin(seed * 0.3 + layer) * 20;
+    const cellSize = flakeSize * scale * 8;
+    const layerBright = 0.5 + layer * 0.1;
+    const yTotal = seed * speed;
+    const yFrac = (yTotal % cellSize + cellSize) % cellSize;
+    const yShift = Math.floor(yTotal / cellSize);
+    const margin = Math.ceil(Math.abs(drift)) + cellSize;
+    const cols = Math.ceil((width + margin * 2) / cellSize) + 1;
+    const rows = Math.ceil(height / cellSize) + 1;
+    ctx.globalAlpha = Math.min(1, layerBright * intensity * 0.8);
+    for (let row = -1; row <= rows; row++) {
+      const absRow = row + yShift;
+      for (let col = 0; col < cols; col++) {
+        const h = deterministicHash(layer * 13, col, absRow);
+        if (h >= intensity * 0.5) continue;
+        const offX = (deterministicHash(layer * 7, col, absRow) - 0.5) * 0.3 * cellSize;
+        const offY = (deterministicHash(layer * 11, col, absRow) - 0.5) * 0.3 * cellSize;
+        const x = col * cellSize + drift + offX + cellSize * 0.5;
+        const y = row * cellSize + yFrac + offY + cellSize * 0.5;
+        if (x < -cellSize || x > width + cellSize) continue;
+        if (y < -cellSize || y > height + cellSize) continue;
+        const flakeRadius = Math.max(0.5, (0.15 + h * 0.1) * cellSize * 0.5);
+        ctx.beginPath();
+        ctx.arc(x, y, flakeRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
   ctx.restore();
 };
 var applySparkle = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const density = Math.max(0.1, Math.min(1, num2(params.density, 0.3)));
-  const seed = Math.floor(num2(params._seed, 0));
+  const seed = num2(params._seed, 0);
   const size = Math.max(1, Math.min(10, num2(params.size, 3)));
   if (intensity === 0) return;
   ctx.save();
   ctx.globalCompositeOperation = "screen";
+  const seedInt = Math.round(seed);
   const count = Math.round(density * 40);
   for (let i = 0; i < count; i++) {
-    const h = deterministicHash(seed, i, 30);
+    const h = deterministicHash(seedInt, i, 30);
     if (h > density) continue;
-    const x = deterministicHash(seed, i, 31) * width;
-    const y = deterministicHash(seed, i, 32) * height;
-    const twinkle = 0.5 + 0.5 * Math.sin(seed * 6.28 * deterministicHash(seed, i, 33));
-    const s = size * (0.5 + deterministicHash(seed, i, 34) * 0.5);
+    const x = deterministicHash(seedInt, i, 31) * width;
+    const y = deterministicHash(seedInt, i, 32) * height;
+    const twinkle = 0.5 + 0.5 * Math.sin(seed * 6.28 * deterministicHash(seedInt, i, 33));
+    const s = size * (0.5 + deterministicHash(seedInt, i, 34) * 0.5);
     ctx.globalAlpha = intensity * twinkle * 0.8;
     ctx.fillStyle = "rgba(255, 255, 255, 1)";
     ctx.beginPath();
@@ -9578,7 +10915,7 @@ var applyColorShift = (ctx, width, height, params) => {
     h = ((h + hueOffset / 360) % 1 + 1) % 1;
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    const hue2rgb = (t) => {
+    const hue2rgb2 = (t) => {
       if (t < 0) t += 1;
       if (t > 1) t -= 1;
       if (t < 1 / 6) return p + (q - p) * 6 * t;
@@ -9586,9 +10923,9 @@ var applyColorShift = (ctx, width, height, params) => {
       if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
       return p;
     };
-    data[i] = Math.round(hue2rgb(h + 1 / 3) * 255);
-    data[i + 1] = Math.round(hue2rgb(h) * 255);
-    data[i + 2] = Math.round(hue2rgb(h - 1 / 3) * 255);
+    data[i] = Math.round(hue2rgb2(h + 1 / 3) * 255);
+    data[i + 1] = Math.round(hue2rgb2(h) * 255);
+    data[i + 2] = Math.round(hue2rgb2(h - 1 / 3) * 255);
   }
   ctx.putImageData(imageData, 0, 0);
 };
@@ -9596,7 +10933,9 @@ var applyNeonEdge = (ctx, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.7)));
   const bgDarken = Math.max(0, Math.min(1, num2(params.bgDarken, 0.7)));
   const hueOffset = num2(params._hueOffset, 0);
+  const edgeWidth = Math.max(0.5, num2(params.edgeWidth, 1));
   if (intensity === 0) return;
+  const step = Math.max(1, Math.round(edgeWidth));
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
   const result = new Uint8ClampedArray(data.length);
@@ -9623,18 +10962,19 @@ var applyNeonEdge = (ctx, width, height, params) => {
   };
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const tl = lum(getIdx(x - 1, y - 1));
-      const tc = lum(getIdx(x, y - 1));
-      const tr = lum(getIdx(x + 1, y - 1));
-      const ml = lum(getIdx(x - 1, y));
-      const mr = lum(getIdx(x + 1, y));
-      const bl = lum(getIdx(x - 1, y + 1));
-      const bc = lum(getIdx(x, y + 1));
-      const br = lum(getIdx(x + 1, y + 1));
+      const tl = lum(getIdx(x - step, y - step));
+      const tc = lum(getIdx(x, y - step));
+      const tr = lum(getIdx(x + step, y - step));
+      const ml = lum(getIdx(x - step, y));
+      const mr = lum(getIdx(x + step, y));
+      const bl = lum(getIdx(x - step, y + step));
+      const bc = lum(getIdx(x, y + step));
+      const br = lum(getIdx(x + step, y + step));
       const gx = -tl - 2 * ml - bl + tr + 2 * mr + br;
       const gy = -tl - 2 * tc - tr + bl + 2 * bc + br;
-      let edge = Math.sqrt(gx * gx + gy * gy) / 255;
-      edge = Math.min(1, Math.max(0, (edge - 0.05) / 0.25));
+      const rawEdge = Math.sqrt(gx * gx + gy * gy) / 255;
+      const et = Math.max(0, Math.min(1, (rawEdge - 0.05) / 0.25));
+      const edge = et * et * (3 - 2 * et);
       const hue = ((hueOffset / 360 + edge * 0.2) % 1 + 1) % 1;
       const [nr, ng, nb] = hsv2rgb(hue, 1, 1);
       const idx = (y * width + x) * 4;
@@ -9832,15 +11172,19 @@ var applyFire = (ctx, width, height, params) => {
   }
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
+  const maxDim = Math.max(width, height);
+  const oct1 = maxDim > 800 ? 4 : 6;
+  const oct2 = maxDim > 800 ? 3 : 5;
+  const oct3 = maxDim > 800 ? 4 : 6;
   for (let y = 0; y < height; y++) {
     const ny = y / height;
     for (let x = 0; x < width; x++) {
       const nx = x / width;
-      const qx = fireFbm(nx * scale, ny * scale + time * 0.6, 0, 6);
-      const qy = fireFbm(nx * scale + 5.2, ny * scale + 1.3 + time * 0.4, 1, 6);
-      const rx = fireFbm(nx * scale + qx * 3 + 1.7, ny * scale + qy * 3 + 9.2 + time * 0.7, 2, 5);
-      const ry = fireFbm(nx * scale + qx * 2.5 + 8.3, ny * scale + qy * 2.5 + 2.8 + time * 0.5, 3, 5);
-      const n = fireFbm(nx * scale + rx * 2, ny * scale + ry * 2 + time * 0.9, 4, 6);
+      const qx = fireFbm(nx * scale, ny * scale + time * 0.6, 0, oct1);
+      const qy = fireFbm(nx * scale + 5.2, ny * scale + 1.3 + time * 0.4, 1, oct1);
+      const rx = fireFbm(nx * scale + qx * 3 + 1.7, ny * scale + qy * 3 + 9.2 + time * 0.7, 2, oct2);
+      const ry = fireFbm(nx * scale + qx * 2.5 + 8.3, ny * scale + qy * 2.5 + 2.8 + time * 0.5, 3, oct2);
+      const n = fireFbm(nx * scale + rx * 2, ny * scale + ry * 2 + time * 0.9, 4, oct3);
       const baseMask = Math.max(0, Math.min(1, (ny - 0.25) / 0.75));
       const tipMask = Math.max(0, Math.min(1, (1 - ny) / 0.08));
       const hTaper = Math.max(0, Math.min(1, nx / 0.3)) * Math.max(0, Math.min(1, (1 - nx) / 0.3));
@@ -9984,6 +11328,13 @@ var applyFireworks = (ctx, width, height, params) => {
   }
   ctx.putImageData(imageData, 0, 0);
 };
+var applyCameraMotionBlur = (ctx, width, height, params) => {
+  const samples = Math.max(2, Math.min(32, Math.round(num2(params.samples, 8))));
+  const shutterAngle = Math.max(0, Math.min(360, num2(params.shutterAngle, 180)));
+  if (shutterAngle === 0) return;
+  const blurRadius = Math.max(1, Math.round(shutterAngle / 360 * samples * 0.5));
+  applyBoxBlur(ctx, width, height, blurRadius);
+};
 var CANVAS2D_EFFECT_HANDLERS = {
   applyGaussianBlur,
   applyRadialBlur,
@@ -10031,7 +11382,8 @@ var CANVAS2D_EFFECT_HANDLERS = {
   applyGodray,
   applySpotlight,
   applyFire,
-  applyFireworks
+  applyFireworks,
+  applyCameraMotionBlur
 };
 function applyCanvas2DEffect(ctx, width, height, fallbackName, params) {
   const handler = CANVAS2D_EFFECT_HANDLERS[fallbackName];
@@ -10713,7 +12065,7 @@ function buildEncoderArgs(bitrate, fps, width, height) {
     ...BT709_FLAGS
   ];
 }
-var ServerRenderExporter = class {
+var ServerRenderExporter = class _ServerRenderExporter {
   constructor() {
     this._textWrapCache = null;
     this._charWidthCache = null;
@@ -10733,8 +12085,140 @@ var ServerRenderExporter = class {
      * 查找当前时间的活跃转场
      */
     this._transitionZoneCache = /* @__PURE__ */ new Map();
+    /**
+     * 离屏 canvas 缓存，按 "fallbackName_WxH" 键缓存。
+     * 避免每帧重复分配 Canvas 对象（heavy effects 每帧都调用）。
+     */
+    this._effectOffscreenCache = /* @__PURE__ */ new Map();
     // GIF 帧缓存: src → { frames: Image[], delays: number[] }
     this.gifCache = /* @__PURE__ */ new Map();
+  }
+  /** Worker Thread 初始化：在渲染前初始化所有帧级缓存 */
+  initializeCaches() {
+    this._textWrapCache = /* @__PURE__ */ new Map();
+    this._charWidthCache = /* @__PURE__ */ new Map();
+    this._propsPool = /* @__PURE__ */ new Map();
+    this._lineWidthCache = /* @__PURE__ */ new Map();
+    this._metricsCache = /* @__PURE__ */ new Map();
+    this._filterCache = /* @__PURE__ */ new Map();
+    this._staticCache = /* @__PURE__ */ new Map();
+  }
+  /** Worker Thread 清理：渲染结束后释放帧级缓存 */
+  cleanupCaches() {
+    this._textWrapCache = null;
+    this._charWidthCache = null;
+    this.captionIndex = null;
+    this.captionIndexSource = null;
+    this._propsPool = null;
+    this._lineWidthCache = null;
+    this._metricsCache = null;
+    this._filterCache = null;
+    this._canvasPool.length = 0;
+    this._staticCache = null;
+    this._transitionZoneCache.clear();
+    this._speedCalcCache.clear();
+  }
+  /**
+   * 渲染单帧到 ctx（不含 toBufferSync / encoder.stdin.write）。
+   * 串行路径和 Worker Thread 并行路径均调用此方法。
+   */
+  async renderFrameToBuffer(frameIndex, fps, ctx, outWidth, outHeight, canvasWidth, canvasHeight, scaleX, scaleY, activeElements, transitions, renderTracks, captions, captionStyle, captionAnimation, backgroundColor, backgroundType, blurIntensity, resolvedPaths, imageLoader, videoExtractor, blurOffCanvas, blurOffCtx, totalFrames, totalDuration) {
+    const time = totalFrames !== void 0 && totalDuration !== void 0 && frameIndex === totalFrames - 1 ? totalDuration : frameIndex / fps;
+    ctx.clearRect(0, 0, outWidth, outHeight);
+    if (backgroundType !== "blur") {
+      const bg = backgroundColor || "#000000";
+      if (bg.includes("gradient")) {
+        this.drawGradientBackground(ctx, outWidth, outHeight, bg);
+      } else {
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, outWidth, outHeight);
+      }
+    }
+    if (backgroundType === "blur") {
+      try {
+        await this.renderBlurBackground(
+          ctx,
+          outWidth,
+          outHeight,
+          activeElements,
+          time,
+          blurIntensity * Math.sqrt(scaleX * scaleY),
+          resolvedPaths,
+          imageLoader,
+          videoExtractor,
+          blurOffCanvas,
+          blurOffCtx
+        );
+      } catch (err) {
+        console.warn(`[ServerRenderExporter] Failed to render blur background:`, err);
+      }
+    }
+    const activeTransition = this._findActiveTransition(transitions, activeElements, time);
+    const transitionElementIds = /* @__PURE__ */ new Set();
+    if (activeTransition) {
+      transitionElementIds.add(activeTransition.zone.sourceElementId);
+      transitionElementIds.add(activeTransition.zone.targetElementId);
+    }
+    for (const { element } of activeElements) {
+      if (transitionElementIds.has(element.id)) continue;
+      const elStart = element.startTime + element.trimStart;
+      const elEnd = element.startTime + element.duration - element.trimEnd;
+      if (time < elStart || time > elEnd) continue;
+      try {
+        await this.renderElement(ctx, element, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight);
+      } catch (err) {
+        console.warn(`[ServerRenderExporter] Failed to render element ${element.id}:`, err);
+      }
+    }
+    if (activeTransition) {
+      try {
+        await this._renderTransitionFrame(
+          ctx,
+          activeTransition,
+          activeElements,
+          time,
+          resolvedPaths,
+          imageLoader,
+          videoExtractor,
+          scaleX,
+          scaleY,
+          canvasWidth,
+          canvasHeight,
+          outWidth,
+          outHeight
+        );
+      } catch (err) {
+        console.warn(`[ServerRenderExporter] Failed to render transition:`, err);
+      }
+    }
+    if (captions && captions.length > 0) {
+      try {
+        this.renderCaptionsOverlay(
+          ctx,
+          outWidth,
+          outHeight,
+          time,
+          captions,
+          captionStyle ?? void 0,
+          captionAnimation ?? void 0,
+          scaleX,
+          scaleY
+        );
+      } catch (err) {
+        console.warn(`[ServerRenderExporter] Failed to render captions:`, err);
+      }
+    }
+    const activeEffects = DataConverter.getActiveEffectElements(renderTracks, time);
+    if (activeEffects.length > 0) {
+      try {
+        const resolvedEffects = this.resolveEffectElements(activeEffects, time);
+        if (resolvedEffects.length > 0) {
+          this.applyGlobalEffects(ctx, outWidth, outHeight, resolvedEffects);
+        }
+      } catch (err) {
+        console.warn(`[ServerRenderExporter] Failed to apply global effects:`, err);
+      }
+    }
   }
   async export(canvasState, outputFormat, resolution, onProgress) {
     const fps = outputFormat.fps || 30;
@@ -10768,7 +12252,12 @@ var ServerRenderExporter = class {
       tempFontFiles = await FontRegistry.registerBrandFonts(brandFonts);
     }
     const renderTracks = DataConverter.convertTracks(tracks, elements, animations, keyframeTracks);
-    const totalDuration = maxTime > 0 ? maxTime / 1e3 : DataConverter.calculateTotalDuration(renderTracks);
+    const totalDuration = (() => {
+      if (maxTime > 0) return maxTime / 1e3;
+      const tracksDuration = DataConverter.calculateTotalDuration(renderTracks);
+      const captionsDuration = captions.length > 0 ? Math.max(0, ...captions.map((c) => srtTimeToMs(c.endTime) / 1e3)) : 0;
+      return Math.max(tracksDuration, captionsDuration);
+    })();
     const totalFrames = Math.ceil(totalDuration * fps);
     if (totalFrames <= 0) {
       throw new Error("No frames to render (duration = 0)");
@@ -10818,21 +12307,16 @@ var ServerRenderExporter = class {
       }
     }
     onProgress?.(5, "\u5F00\u59CB\u6E32\u67D3\u5E27");
+    const useParallel = os5.cpus().length >= 3 && totalFrames >= 60 && !process.env.DISABLE_WORKER_THREADS;
     const canvas = new Canvas(outWidth, outHeight);
     const ctx = canvas.getContext("2d");
-    const workDir = path4.join(os4.tmpdir(), `video-export-${crypto.randomUUID()}`);
+    const workDir = path5.join(os5.tmpdir(), `video-export-${crypto.randomUUID()}`);
     fs4.mkdirSync(workDir, { recursive: true });
     const scaleX = outWidth / canvasWidth;
     const scaleY = outHeight / canvasHeight;
     const blurOffCanvas = backgroundType === "blur" ? new Canvas(outWidth, outHeight) : null;
     const blurOffCtx = blurOffCanvas?.getContext("2d") ?? null;
-    this._textWrapCache = /* @__PURE__ */ new Map();
-    this._charWidthCache = /* @__PURE__ */ new Map();
-    this._propsPool = /* @__PURE__ */ new Map();
-    this._lineWidthCache = /* @__PURE__ */ new Map();
-    this._metricsCache = /* @__PURE__ */ new Map();
-    this._filterCache = /* @__PURE__ */ new Map();
-    this._staticCache = /* @__PURE__ */ new Map();
+    this.initializeCaches();
     const extendBefore = /* @__PURE__ */ new Map();
     const extendAfter = /* @__PURE__ */ new Map();
     if (transitions.length > 0) {
@@ -10864,6 +12348,12 @@ var ServerRenderExporter = class {
       }
       activeElementsByFrame.push(active);
     }
+    let videoFrameDiskPaths = /* @__PURE__ */ new Map();
+    let videoFramesDiskDir = "";
+    if (useParallel && videoSrcs.size > 0) {
+      videoFramesDiskDir = path5.join(workDir, "video-frames");
+      fs4.mkdirSync(videoFramesDiskDir, { recursive: true });
+    }
     if (videoSrcs.size > 0) {
       onProgress?.(5, "\u9884\u63D0\u53D6\u89C6\u9891\u5E27");
       videoExtractor.setCacheLimit(Math.max(300, Math.min(5e3, totalFrames + 100)));
@@ -10891,18 +12381,35 @@ var ServerRenderExporter = class {
         }
       }
       const extractionTasks = Array.from(videoFrameMap.entries()).map(
-        ([videoPath, { cacheKeys, mediaTimes }]) => {
+        ([videoPath, { cacheKeys, mediaTimes }], videoIdx) => {
           const indices = mediaTimes.map((_, i) => i).sort((a, b) => mediaTimes[a] - mediaTimes[b]);
-          return () => videoExtractor.batchPreExtract(
-            videoPath,
-            indices.map((i) => cacheKeys[i]),
-            indices.map((i) => mediaTimes[i]),
-            (done, total) => {
-              if (done % 50 === 0) {
-                onProgress?.(5 + done / total * 2, `\u9884\u63D0\u53D6\u89C6\u9891\u5E27 ${done}/${total}`);
+          if (useParallel) {
+            return async () => {
+              const videoDir = path5.join(videoFramesDiskDir, `v${videoIdx}`);
+              fs4.mkdirSync(videoDir, { recursive: true });
+              const diskPaths = await videoExtractor.batchPreExtractToDisk(
+                videoPath,
+                indices.map((i) => cacheKeys[i]),
+                indices.map((i) => mediaTimes[i]),
+                videoDir,
+                (done, total) => {
+                  if (done % 50 === 0) onProgress?.(5 + done / total * 2, `\u9884\u63D0\u53D6\u89C6\u9891\u5E27 ${done}/${total}`);
+                }
+              );
+              for (const [k, v] of diskPaths) videoFrameDiskPaths.set(k, v);
+            };
+          } else {
+            return () => videoExtractor.batchPreExtract(
+              videoPath,
+              indices.map((i) => cacheKeys[i]),
+              indices.map((i) => mediaTimes[i]),
+              (done, total) => {
+                if (done % 50 === 0) {
+                  onProgress?.(5 + done / total * 2, `\u9884\u63D0\u53D6\u89C6\u9891\u5E27 ${done}/${total}`);
+                }
               }
-            }
-          );
+            );
+          }
         }
       );
       const extractResults = await parallelLimit(extractionTasks, 3);
@@ -10914,6 +12421,7 @@ var ServerRenderExporter = class {
     }
     const audioExtractor = new ServerAudioExtractor();
     const audioTracks = [];
+    const audioTrackByElementId = /* @__PURE__ */ new Map();
     for (const track of renderTracks) {
       for (const el of track.elements) {
         if ((el.type === "video" || el.type === "audio") && el.src && !el.muted) {
@@ -10925,21 +12433,39 @@ var ServerRenderExporter = class {
             const totalMedia = speedCalc.getTotalMediaDuration();
             effectiveSpeed = visDur > 0 ? totalMedia / visDur : 1;
           }
-          audioTracks.push({
+          const info = {
             src: resolvedSrc,
             startTime: el.startTime,
             endTime: el.startTime + el.duration,
             mediaStartTime: el.mediaStartTime || 0,
             volume: el.volume ?? 1,
-            playbackSpeed: effectiveSpeed
-          });
+            playbackSpeed: effectiveSpeed,
+            crossfadeZones: []
+          };
+          audioTracks.push(info);
+          audioTrackByElementId.set(el.id, info);
         }
+      }
+    }
+    for (const t of transitions) {
+      const srcTrack = audioTrackByElementId.get(t.sourceElementId);
+      const tgtTrack = audioTrackByElementId.get(t.targetElementId);
+      if (!srcTrack && !tgtTrack) continue;
+      const halfDurSec = t.duration / 2e3;
+      const junctionSec = srcTrack ? srcTrack.endTime : tgtTrack.startTime;
+      const zoneStartSec = junctionSec - halfDurSec;
+      const zoneDurSec = t.duration / 1e3;
+      if (srcTrack) {
+        srcTrack.crossfadeZones.push({ zoneStartSec, zoneDurSec, role: "source" });
+      }
+      if (tgtTrack) {
+        tgtTrack.crossfadeZones.push({ zoneStartSec, zoneDurSec, role: "target" });
       }
     }
     let audioPath = null;
     let audioPromise = Promise.resolve(null);
     if (audioTracks.length > 0) {
-      const audioTarget = path4.join(workDir, "audio.wav");
+      const audioTarget = path5.join(workDir, "audio.wav");
       audioPromise = audioExtractor.mixAudioTracks(audioTracks, totalDuration, audioTarget).catch((err) => {
         console.warn("[ServerRenderExporter] Audio extraction failed:", err);
         return null;
@@ -10947,7 +12473,7 @@ var ServerRenderExporter = class {
     }
     onProgress?.(8, "\u5F00\u59CB\u6E32\u67D3\u5E27");
     const outputFilename = `output_${crypto.randomUUID()}.${format}`;
-    let outputPath = path4.join(workDir, outputFilename);
+    let outputPath = path5.join(workDir, outputFilename);
     const encoderArgs = buildEncoderArgs(quality.videoBitrate, fps, outWidth, outHeight);
     const ffmpegArgs = [
       "-f",
@@ -10974,112 +12500,91 @@ var ServerRenderExporter = class {
       encoderError = new Error(`FFmpeg pipe encoder spawn error: ${err.message}`);
     });
     try {
-      for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
-        const time = frameIndex / fps;
-        ctx.clearRect(0, 0, outWidth, outHeight);
-        if (backgroundType !== "blur") {
-          const bg = backgroundColor || "#000000";
-          if (bg.includes("gradient")) {
-            this.drawGradientBackground(ctx, outWidth, outHeight, bg);
-          } else {
-            ctx.fillStyle = bg;
-            ctx.fillRect(0, 0, outWidth, outHeight);
-          }
-        }
-        const activeElements = activeElementsByFrame[frameIndex];
-        if (backgroundType === "blur") {
-          try {
-            await this.renderBlurBackground(
-              ctx,
-              outWidth,
-              outHeight,
-              activeElements,
-              time,
-              blurIntensity * scaleX,
-              resolvedPaths,
-              imageLoader,
-              videoExtractor,
-              blurOffCanvas,
-              blurOffCtx
-            );
-          } catch (err) {
-            console.warn(`[ServerRenderExporter] Failed to render blur background:`, err);
-          }
-        }
-        const activeTransition = this._findActiveTransition(transitions, activeElements, time);
-        const transitionElementIds = /* @__PURE__ */ new Set();
-        if (activeTransition) {
-          transitionElementIds.add(activeTransition.zone.sourceElementId);
-          transitionElementIds.add(activeTransition.zone.targetElementId);
-        }
-        for (const { element } of activeElements) {
-          if (transitionElementIds.has(element.id)) continue;
-          try {
-            await this.renderElement(ctx, element, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight);
-          } catch (err) {
-            console.warn(`[ServerRenderExporter] Failed to render element ${element.id}:`, err);
-          }
-        }
-        if (activeTransition) {
-          try {
-            await this._renderTransitionFrame(
-              ctx,
-              activeTransition,
-              activeElements,
-              time,
-              resolvedPaths,
-              imageLoader,
-              videoExtractor,
-              scaleX,
-              scaleY,
-              canvasWidth,
-              canvasHeight,
-              outWidth,
-              outHeight
-            );
-          } catch (err) {
-            console.warn(`[ServerRenderExporter] Failed to render transition:`, err);
-          }
-        }
-        if (captions && captions.length > 0) {
-          try {
-            this.renderCaptionsOverlay(
-              ctx,
-              outWidth,
-              outHeight,
-              time,
-              captions,
-              captionStyle,
-              captionAnimation,
-              scaleX,
-              scaleY
-            );
-          } catch (err) {
-            console.warn(`[ServerRenderExporter] Failed to render captions:`, err);
-          }
-        }
-        const activeEffects = DataConverter.getActiveEffectElements(renderTracks, time);
-        if (activeEffects.length > 0) {
-          try {
-            const resolvedEffects = this.resolveEffectElements(activeEffects, time);
-            if (resolvedEffects.length > 0) {
-              this.applyGlobalEffects(ctx, outWidth, outHeight, resolvedEffects);
-            }
-          } catch (err) {
-            console.warn(`[ServerRenderExporter] Failed to apply global effects:`, err);
-          }
-        }
-        if (encoderError) {
-          throw encoderError;
-        }
+      const renderOneFrameSerial = async (frameIndex) => {
+        await this.renderFrameToBuffer(
+          frameIndex,
+          fps,
+          ctx,
+          outWidth,
+          outHeight,
+          canvasWidth,
+          canvasHeight,
+          scaleX,
+          scaleY,
+          activeElementsByFrame[frameIndex],
+          transitions,
+          renderTracks,
+          captions,
+          captionStyle,
+          captionAnimation,
+          backgroundColor,
+          backgroundType === "blur" ? "blur" : void 0,
+          blurIntensity,
+          resolvedPaths,
+          imageLoader,
+          videoExtractor,
+          blurOffCanvas,
+          blurOffCtx,
+          totalFrames,
+          totalDuration
+        );
+        if (encoderError) throw encoderError;
         const frameBuffer = canvas.toBufferSync("raw");
         const canWrite = encoder.stdin.write(frameBuffer);
-        if (!canWrite) {
-          await new Promise((resolve3) => encoder.stdin.once("drain", resolve3));
-        }
-        const renderProgress = 8 + frameIndex / totalFrames * 82;
+        if (!canWrite) await new Promise((r) => encoder.stdin.once("drain", r));
         if (frameIndex % 10 === 0) {
-          onProgress?.(renderProgress, `\u6E32\u67D3\u5E27 ${frameIndex + 1}/${totalFrames}`);
+          onProgress?.(8 + frameIndex / totalFrames * 82, `\u6E32\u67D3\u5E27 ${frameIndex + 1}/${totalFrames}`);
+        }
+      };
+      if (useParallel) {
+        const { WorkerFrameRenderer: WorkerFrameRenderer2 } = await Promise.resolve().then(() => (init_WorkerFrameRenderer(), WorkerFrameRenderer_exports));
+        try {
+          await new WorkerFrameRenderer2().renderAllFrames(
+            {
+              renderTracks,
+              transitions,
+              captions: captions || [],
+              captionStyle: captionStyle ?? null,
+              captionAnimation: captionAnimation ?? null,
+              outWidth,
+              outHeight,
+              canvasWidth,
+              canvasHeight,
+              scaleX,
+              scaleY,
+              fps,
+              totalFrames,
+              totalDuration,
+              backgroundColor,
+              backgroundType: backgroundType === "blur" ? "blur" : void 0,
+              blurIntensity,
+              resolvedPaths: Object.fromEntries(resolvedPaths),
+              videoFrameDiskPaths: Object.fromEntries(videoFrameDiskPaths)
+            },
+            totalFrames,
+            async (_frameIndex, buffer) => {
+              if (encoderError) throw encoderError;
+              const canWrite = encoder.stdin.write(Buffer.from(buffer));
+              if (!canWrite) await new Promise((r) => encoder.stdin.once("drain", r));
+            },
+            (fi) => {
+              if (fi % 10 === 0) {
+                onProgress?.(8 + fi / totalFrames * 82, `\u6E32\u67D3\u5E27 ${fi + 1}/${totalFrames}`);
+              }
+            }
+          );
+        } catch (parallelErr) {
+          console.warn("[ServerRenderExporter] Parallel rendering failed, falling back to serial:", parallelErr);
+          for (const [key, filePath] of videoFrameDiskPaths) {
+            await videoExtractor.preloadFrameFromDisk(key, filePath);
+          }
+          for (let fi = 0; fi < totalFrames; fi++) {
+            await renderOneFrameSerial(fi);
+          }
+        }
+      } else {
+        for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+          await renderOneFrameSerial(frameIndex);
         }
       }
       encoder.stdin.end();
@@ -11095,7 +12600,7 @@ var ServerRenderExporter = class {
       audioPath = await audioPromise;
       if (audioPath) {
         onProgress?.(92, "\u5408\u5E76\u97F3\u9891");
-        const muxedPath = path4.join(workDir, `muxed_${crypto.randomUUID()}.${format}`);
+        const muxedPath = path5.join(workDir, `muxed_${crypto.randomUUID()}.${format}`);
         await this.muxVideoAudio(outputPath, audioPath, muxedPath);
         try {
           fs4.unlinkSync(outputPath);
@@ -11118,18 +12623,7 @@ var ServerRenderExporter = class {
       }
       throw err;
     } finally {
-      this._textWrapCache = null;
-      this._charWidthCache = null;
-      this.captionIndex = null;
-      this.captionIndexSource = null;
-      this._propsPool = null;
-      this._lineWidthCache = null;
-      this._metricsCache = null;
-      this._filterCache = null;
-      this._canvasPool.length = 0;
-      this._staticCache = null;
-      this._transitionZoneCache.clear();
-      this._speedCalcCache.clear();
+      this.cleanupCaches();
       try {
         if (audioPath && fs4.existsSync(audioPath)) {
           fs4.unlinkSync(audioPath);
@@ -11140,6 +12634,11 @@ var ServerRenderExporter = class {
       videoExtractor.clear();
       mediaResolver.cleanup();
       this.gifCache.clear();
+      this._effectOffscreenCache.clear();
+      try {
+        if (videoFramesDiskDir) fs4.rmSync(videoFramesDiskDir, { recursive: true, force: true });
+      } catch {
+      }
       FontRegistry.cleanupTempFonts(tempFontFiles);
     }
     onProgress?.(95, "\u5B8C\u6210");
@@ -11208,6 +12707,11 @@ var ServerRenderExporter = class {
   }
   /**
    * 渲染转场合成帧（双离屏画布）
+   * 与前端 TimelineRenderer._renderTransitionFrame 保持一致：
+   * 1. 钳制 source/target 渲染时间到各自可见范围
+   * 2. 剥离 source 的出场动画 / target 的入场动画
+   * 3. 对 rawProgress 施加缓动函数
+   * 4. blur/pixelate 类型走增强路径（CSS filter blur / 降采样像素化）
    */
   async _renderTransitionFrame(ctx, active, activeElements, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight, outWidth, outHeight) {
     const { zone } = active;
@@ -11223,16 +12727,223 @@ var ServerRenderExporter = class {
       }
       return;
     }
+    const srcEl = sourceEntry.element;
+    const tgtEl = targetEntry.element;
+    const srcStart = srcEl.startTime + srcEl.trimStart;
+    const srcEnd = srcEl.startTime + srcEl.duration - srcEl.trimEnd;
+    const tgtStart = tgtEl.startTime + tgtEl.trimStart;
+    const tgtEnd = tgtEl.startTime + tgtEl.duration - tgtEl.trimEnd;
+    const sourceTime = Math.max(srcStart, Math.min(time, srcEnd));
+    const targetTime = Math.max(tgtStart, Math.min(time, tgtEnd));
+    const sourceForRender = this._prepareElementForTransition(srcEl, "source");
+    const targetForRender = this._prepareElementForTransition(tgtEl, "target");
     const canvasA = new Canvas(outWidth, outHeight);
     const ctxA = canvasA.getContext("2d");
     const canvasB = new Canvas(outWidth, outHeight);
     const ctxB = canvasB.getContext("2d");
     ctxA.clearRect(0, 0, outWidth, outHeight);
-    await this.renderElement(ctxA, sourceEntry.element, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight);
+    await this.renderElement(ctxA, sourceForRender, sourceTime, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight);
     ctxB.clearRect(0, 0, outWidth, outHeight);
-    await this.renderElement(ctxB, targetEntry.element, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight);
-    const progress = Math.max(0, Math.min(1, (timeMs - zone.zoneStart) / (zone.zoneEnd - zone.zoneStart)));
+    await this.renderElement(ctxB, targetForRender, targetTime, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight);
+    const rawProgress = Math.max(0, Math.min(1, (timeMs - zone.zoneStart) / (zone.zoneEnd - zone.zoneStart)));
+    const progress = applyTransitionEasing(rawProgress, zone.type, zone.easing);
+    if (zone.type === "blur") {
+      const exportScale = Math.sqrt(scaleX * scaleY);
+      this._renderBlurTransition(ctx, canvasA, canvasB, outWidth, outHeight, progress, exportScale);
+      return;
+    }
+    if (zone.type === "pixelate") {
+      const exportScale = Math.sqrt(scaleX * scaleY);
+      this._renderPixelateTransition(ctx, canvasA, canvasB, outWidth, outHeight, progress, exportScale);
+      return;
+    }
+    if (zone.type === "crossZoom") {
+      const exportScale = Math.sqrt(scaleX * scaleY);
+      this._renderCrossZoomTransition(ctx, canvasA, canvasB, outWidth, outHeight, progress, exportScale);
+      return;
+    }
+    if (zone.type === "whipPan") {
+      const exportScale = Math.sqrt(scaleX * scaleY);
+      this._renderWhipPanTransition(ctx, canvasA, canvasB, outWidth, outHeight, progress, exportScale);
+      return;
+    }
     applyTransitionBlend(zone.type, ctx, canvasA, canvasB, outWidth, outHeight, progress);
+  }
+  /**
+   * 剥离转场期间不应参与的动画：
+   * - source 元素：去掉出场动画（避免与转场淡出叠加）
+   * - target 元素：去掉入场动画（避免与转场淡入叠加）
+   */
+  _prepareElementForTransition(element, role) {
+    if (!element.animations || element.animations.length === 0) return element;
+    const filtered = element.animations.filter(
+      (a) => role === "source" ? !EXIT_ANIMATION_TYPES.has(a.type) : !ENTRANCE_ANIMATION_TYPES.has(a.type)
+    );
+    if (filtered.length === element.animations.length) return element;
+    return { ...element, animations: filtered };
+  }
+  /**
+   * blur 转场增强渲染：CSS filter blur，模糊强度在 progress=0.5 时达到峰值
+   * 与前端 TimelineRenderer.renderBlurTransition 保持一致
+   */
+  _renderBlurTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+    const p = progress;
+    const maxBlur = 20 * exportScale;
+    const blurAmount = maxBlur * (1 - Math.abs(p * 2 - 1));
+    const filterStr = blurAmount > 0.5 ? `blur(${blurAmount}px)` : "none";
+    ctx.save();
+    ctx.globalAlpha = 1 - p;
+    try {
+      ctx.filter = filterStr;
+    } catch {
+    }
+    ctx.drawImage(srcCanvas, 0, 0, w, h);
+    ctx.restore();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+    ctx.save();
+    ctx.globalAlpha = p;
+    try {
+      ctx.filter = filterStr;
+    } catch {
+    }
+    ctx.drawImage(tgtCanvas, 0, 0, w, h);
+    ctx.restore();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+  }
+  /**
+   * pixelate 转场增强渲染：降采样放大实现像素化效果，像素块大小在 progress=0.5 时最大
+   * 与前端 TimelineRenderer.renderPixelateTransition 保持一致
+   */
+  _renderPixelateTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+    const p = progress;
+    const maxBlockSize = Math.round(30 * exportScale);
+    const blockSize = Math.max(1, Math.round(maxBlockSize * (1 - Math.abs(p * 2 - 1))));
+    if (blockSize <= 1) {
+      ctx.save();
+      ctx.globalAlpha = 1 - p;
+      ctx.drawImage(srcCanvas, 0, 0, w, h);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = p;
+      ctx.drawImage(tgtCanvas, 0, 0, w, h);
+      ctx.restore();
+      return;
+    }
+    const smallW = Math.max(1, Math.ceil(w / blockSize));
+    const smallH = Math.max(1, Math.ceil(h / blockSize));
+    const tmpItem = this.acquireCanvas(smallW, smallH);
+    const { canvas: tmpCanvas, ctx: tmpCtx } = tmpItem;
+    try {
+      const prevSmoothing = ctx.imageSmoothingEnabled;
+      ctx.save();
+      ctx.globalAlpha = 1 - p;
+      tmpCtx.clearRect(0, 0, smallW, smallH);
+      tmpCtx.drawImage(srcCanvas, 0, 0, smallW, smallH);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmpCanvas, 0, 0, w, h);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = p;
+      tmpCtx.clearRect(0, 0, smallW, smallH);
+      tmpCtx.drawImage(tgtCanvas, 0, 0, smallW, smallH);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmpCanvas, 0, 0, w, h);
+      ctx.restore();
+      ctx.imageSmoothingEnabled = prevSmoothing;
+    } finally {
+      this.releaseCanvas(tmpItem);
+    }
+  }
+  /**
+   * crossZoom 转场增强渲染：source 放大模糊淡出 + target 缩小模糊淡入
+   * 与前端 TimelineRenderer.renderCrossZoomTransition 保持一致
+   */
+  _renderCrossZoomTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+    const p = progress;
+    const maxBlur = 20 * exportScale;
+    const srcScale = 1 + p;
+    const srcBlur = maxBlur * p;
+    ctx.save();
+    ctx.globalAlpha = 1 - p;
+    if (srcBlur > 0.5) {
+      try {
+        ctx.filter = `blur(${srcBlur}px)`;
+      } catch {
+      }
+    }
+    const sx = w * (1 - srcScale) / 2;
+    const sy = h * (1 - srcScale) / 2;
+    ctx.drawImage(srcCanvas, sx, sy, w * srcScale, h * srcScale);
+    ctx.restore();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+    const tgtScale = 0.5 + p * 0.5;
+    const tgtBlur = maxBlur * (1 - p);
+    ctx.save();
+    ctx.globalAlpha = p;
+    if (tgtBlur > 0.5) {
+      try {
+        ctx.filter = `blur(${tgtBlur}px)`;
+      } catch {
+      }
+    }
+    const tx = w * (1 - tgtScale) / 2;
+    const ty = h * (1 - tgtScale) / 2;
+    ctx.drawImage(tgtCanvas, tx, ty, w * tgtScale, h * tgtScale);
+    ctx.restore();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+  }
+  /**
+   * whipPan 转场增强渲染：横向推挤 + 运动模糊
+   * 与前端 TimelineRenderer.renderWhipPanTransition 保持一致
+   */
+  _renderWhipPanTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+    const p = progress;
+    const blurIntensity = 1 - Math.abs(p * 2 - 1);
+    const blurAmount = 30 * exportScale * blurIntensity;
+    const filterStr = blurAmount > 0.5 ? `blur(${blurAmount}px)` : "none";
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    ctx.save();
+    if (blurAmount > 0.5) {
+      try {
+        ctx.filter = filterStr;
+      } catch {
+      }
+    }
+    ctx.drawImage(srcCanvas, -w * p, 0, w, h);
+    ctx.restore();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+    ctx.save();
+    if (blurAmount > 0.5) {
+      try {
+        ctx.filter = filterStr;
+      } catch {
+      }
+    }
+    ctx.drawImage(tgtCanvas, w * (1 - p), 0, w, h);
+    ctx.restore();
+    try {
+      ctx.filter = "none";
+    } catch {
+    }
+    ctx.restore();
   }
   calculateElementProperties(element, currentTime, canvasWidth, canvasHeight) {
     const localTime = currentTime - element.startTime;
@@ -11592,10 +13303,60 @@ var ServerRenderExporter = class {
     }
     return sortResolvedEffects(resolved);
   }
+  static {
+    /**
+     * 高开销 Canvas 2D 效果的降分辨率倍数。
+     * 这些效果是 per-pixel FBM / domain-warping，复杂度 O(W×H)。
+     * 在 1/N 分辨率的离屏 canvas 上渲染后 drawImage 缩放回原尺寸，
+     * 视觉几乎无损（火焰/焰火/光线本身就是模糊的叠加效果）。
+     */
+    this.EFFECT_DOWNSCALE = {
+      applyFire: 4,
+      // 5× domain-warped FBM, 28 octaves/pixel → 16× fewer pixels
+      applyFireworks: 3,
+      // 48 particles × 12 trail gaussian splats  → 9× fewer pixels
+      applyGodray: 3
+      // per-pixel FBM turbulence                 → 9× fewer pixels
+    };
+  }
   applyGlobalEffects(ctx, width, height, effects) {
+    const adaptiveScale = (w, h, factor) => {
+      const base = 480;
+      return Math.max(factor, Math.round(Math.max(w, h) / base));
+    };
     for (const effect of effects) {
       const fallbackName = effect.descriptor.canvas2dFallback;
-      if (fallbackName) {
+      if (!fallbackName) continue;
+      const baseFactor = _ServerRenderExporter.EFFECT_DOWNSCALE[fallbackName];
+      if (baseFactor && baseFactor > 1) {
+        const scale = adaptiveScale(width, height, baseFactor);
+        const sw = Math.max(1, Math.round(width / scale));
+        const sh = Math.max(1, Math.round(height / scale));
+        const cacheKey = `${fallbackName}_${sw}x${sh}`;
+        let cached = this._effectOffscreenCache.get(cacheKey);
+        if (!cached || cached.w !== sw || cached.h !== sh) {
+          cached = { canvas: new Canvas(sw, sh), w: sw, h: sh };
+          this._effectOffscreenCache.set(cacheKey, cached);
+        }
+        const offCtx = cached.canvas.getContext("2d");
+        offCtx.globalCompositeOperation = "source-over";
+        offCtx.globalAlpha = 1;
+        offCtx.fillStyle = "#000000";
+        offCtx.fillRect(0, 0, sw, sh);
+        try {
+          applyCanvas2DEffect(offCtx, sw, sh, fallbackName, effect.params);
+        } catch {
+          continue;
+        }
+        try {
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.drawImage(cached.canvas, 0, 0, width, height);
+          ctx.restore();
+        } catch {
+          ctx.restore?.();
+        }
+      } else {
         try {
           applyCanvas2DEffect(ctx, width, height, fallbackName, effect.params);
         } catch {
@@ -11743,7 +13504,22 @@ var ServerRenderExporter = class {
       cropX: props.cropX,
       cropY: props.cropY,
       cropWidth: props.cropWidth,
-      cropHeight: props.cropHeight
+      cropHeight: props.cropHeight,
+      maskEnabled: props.maskEnabled,
+      maskShapeType: props.maskShapeType,
+      maskX: props.maskX,
+      maskY: props.maskY,
+      maskScaleX: props.maskScaleX,
+      maskScaleY: props.maskScaleY,
+      maskRotation: props.maskRotation,
+      maskInverted: props.maskInverted,
+      maskSides: props.maskSides,
+      maskInnerRadius: props.maskInnerRadius,
+      maskPathData: props.maskPathData,
+      maskFeather: props.maskFeather,
+      maskMode: props.maskMode,
+      maskEffectType: props.maskEffectType,
+      maskEffectIntensity: props.maskEffectIntensity
     });
     const borderWidth = props.borderWidth ?? 0;
     if (borderWidth > 0) {
@@ -12110,7 +13886,7 @@ var ServerRenderExporter = class {
         "-framerate",
         String(fps),
         "-i",
-        path4.join(framesDir, "frame_%06d.jpg")
+        path5.join(framesDir, "frame_%06d.jpg")
       ];
       if (audioPath) {
         args.push("-i", audioPath);
@@ -12227,7 +14003,7 @@ function parseArgs(argv) {
 }
 async function main() {
   const opts = parseArgs(process.argv);
-  const inputPath = path5.resolve(opts.inputPath);
+  const inputPath = path6.resolve(opts.inputPath);
   if (!fs5.existsSync(inputPath)) {
     console.error(`Error: file not found: ${inputPath}`);
     process.exit(1);
@@ -12249,13 +14025,13 @@ async function main() {
     format: opts.format || payloadOutputFormat?.format || "mp4"
   };
   const resolution = opts.width && opts.height ? { width: opts.width, height: opts.height } : payloadResolution || void 0;
-  const outputDir = path5.resolve("./output");
+  const outputDir = path6.resolve("./output");
   if (!fs5.existsSync(outputDir)) {
     fs5.mkdirSync(outputDir, { recursive: true });
   }
   const ext = outputFormat.format === "mp3" ? "mp3" : outputFormat.format;
-  const outputPath = opts.outputPath ? path5.resolve(opts.outputPath) : path5.join(outputDir, `video-${Date.now()}.${ext}`);
-  const outputParent = path5.dirname(outputPath);
+  const outputPath = opts.outputPath ? path6.resolve(opts.outputPath) : path6.join(outputDir, `video-${Date.now()}.${ext}`);
+  const outputParent = path6.dirname(outputPath);
   if (!fs5.existsSync(outputParent)) {
     fs5.mkdirSync(outputParent, { recursive: true });
   }

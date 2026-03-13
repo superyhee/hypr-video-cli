@@ -328,6 +328,134 @@
           "fontColor": "#0071E3",
           "textAlign": "center"
         }
+      },
+      {
+        "id": "el_fx_vignette",
+        "type": "effect",
+        "name": "Cinematic Vignette",
+        "timeFrame": { "start": 0, "end": 30000 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "vignette",
+              "effectParams": { "intensity": 0.45, "radius": 0.75, "softness": 0.85 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_colorgrade",
+        "type": "effect",
+        "name": "Color Grading",
+        "timeFrame": { "start": 0, "end": 30000 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "colorGrading",
+              "effectParams": { "brightness": 0.02, "contrast": 0.12, "saturation": 0.08, "hue": 0, "temperature": -0.05, "tint": 0, "gamma": 1.05 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_glow_intro",
+        "type": "effect",
+        "name": "Intro Glow",
+        "timeFrame": { "start": 1000, "end": 8000 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "glow",
+              "effectParams": { "intensity": 0.25, "radius": 10, "threshold": 0.4 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_leak1",
+        "type": "effect",
+        "name": "Light Leak Transition 1",
+        "timeFrame": { "start": 7500, "end": 9500 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "lightLeak",
+              "effectParams": { "intensity": 0.4, "colorR": 0, "colorG": 0.44, "colorB": 0.89 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_leak2",
+        "type": "effect",
+        "name": "Light Leak Transition 2",
+        "timeFrame": { "start": 14000, "end": 16000 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "lightLeak",
+              "effectParams": { "intensity": 0.35, "colorR": 0, "colorG": 0.44, "colorB": 0.89 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_leak3",
+        "type": "effect",
+        "name": "Light Leak Transition 3",
+        "timeFrame": { "start": 20500, "end": 22500 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "lightLeak",
+              "effectParams": { "intensity": 0.35, "colorR": 0, "colorG": 0.44, "colorB": 0.89 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_leak4",
+        "type": "effect",
+        "name": "Light Leak Finale",
+        "timeFrame": { "start": 26500, "end": 28500 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "lightLeak",
+              "effectParams": { "intensity": 0.5, "colorR": 0, "colorG": 0.44, "colorB": 0.89 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_sparkle",
+        "type": "effect",
+        "name": "Finale Sparkle",
+        "timeFrame": { "start": 27500, "end": 30000 },
+        "placement": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "sparkle",
+              "effectParams": { "intensity": 0.25, "density": 0.25, "size": 2 },
+              "enabled": true
+            }
+          ]
+        }
       }
     ],
     "tracks": [
@@ -372,6 +500,13 @@
         "type": "text",
         "elementIds": ["el_feat1_sub", "el_feat2_sub", "el_feat3_sub"],
         "isVisible": true
+      },
+      {
+        "id": "track_effects",
+        "name": "Visual Effects",
+        "type": "effect",
+        "elementIds": ["el_fx_vignette", "el_fx_colorgrade", "el_fx_glow_intro", "el_fx_leak1", "el_fx_leak2", "el_fx_leak3", "el_fx_leak4", "el_fx_sparkle"],
+        "isVisible": true
       }
     ],
     "animations": [
@@ -399,7 +534,7 @@
         "type": "zoomIn",
         "duration": 1200,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "cubicBezier:0.16,1,0.3,1",
         "properties": {}
       },
       {
@@ -414,10 +549,10 @@
       {
         "id": "anim_tagline_in",
         "targetId": "el_tagline",
-        "type": "fadeIn",
-        "duration": 800,
+        "type": "slideIn",
+        "duration": 900,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "cubicBezier:0.16,1,0.3,1",
         "properties": {}
       },
       {
@@ -430,12 +565,12 @@
         "properties": {}
       },
       {
-        "id": "anim_line1_in",
-        "targetId": "el_line1",
-        "type": "fadeIn",
-        "duration": 500,
-        "group": "in",
-        "easing": "easeOut",
+        "id": "anim_tagline_loop",
+        "targetId": "el_tagline",
+        "type": "breathe",
+        "duration": 3000,
+        "group": "loop",
+        "easing": "easeInOut",
         "properties": {}
       },
       {
@@ -448,12 +583,21 @@
         "properties": {}
       },
       {
+        "id": "anim_line1_loop",
+        "targetId": "el_line1",
+        "type": "pulse",
+        "duration": 2000,
+        "group": "loop",
+        "easing": "easeInOut",
+        "properties": {}
+      },
+      {
         "id": "anim_f1t_in",
         "targetId": "el_feat1_title",
-        "type": "slideIn",
-        "duration": 800,
+        "type": "flipInByCharacter",
+        "duration": 1000,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "cubicBezier:0.16,1,0.3,1",
         "properties": {}
       },
       {
@@ -484,15 +628,6 @@
         "properties": {}
       },
       {
-        "id": "anim_line2_in",
-        "targetId": "el_line2",
-        "type": "fadeIn",
-        "duration": 500,
-        "group": "in",
-        "easing": "easeOut",
-        "properties": {}
-      },
-      {
         "id": "anim_line2_out",
         "targetId": "el_line2",
         "type": "fadeOut",
@@ -502,12 +637,21 @@
         "properties": {}
       },
       {
+        "id": "anim_line2_loop",
+        "targetId": "el_line2",
+        "type": "pulse",
+        "duration": 2000,
+        "group": "loop",
+        "easing": "easeInOut",
+        "properties": {}
+      },
+      {
         "id": "anim_f2t_in",
         "targetId": "el_feat2_title",
-        "type": "slideIn",
-        "duration": 800,
+        "type": "flipInByCharacter",
+        "duration": 1000,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "cubicBezier:0.16,1,0.3,1",
         "properties": {}
       },
       {
@@ -538,15 +682,6 @@
         "properties": {}
       },
       {
-        "id": "anim_line3_in",
-        "targetId": "el_line3",
-        "type": "fadeIn",
-        "duration": 500,
-        "group": "in",
-        "easing": "easeOut",
-        "properties": {}
-      },
-      {
         "id": "anim_line3_out",
         "targetId": "el_line3",
         "type": "fadeOut",
@@ -556,12 +691,21 @@
         "properties": {}
       },
       {
+        "id": "anim_line3_loop",
+        "targetId": "el_line3",
+        "type": "pulse",
+        "duration": 2000,
+        "group": "loop",
+        "easing": "easeInOut",
+        "properties": {}
+      },
+      {
         "id": "anim_f3t_in",
         "targetId": "el_feat3_title",
-        "type": "slideIn",
-        "duration": 800,
+        "type": "flipInByCharacter",
+        "duration": 1000,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "cubicBezier:0.16,1,0.3,1",
         "properties": {}
       },
       {
@@ -594,19 +738,28 @@
       {
         "id": "anim_final_in",
         "targetId": "el_final_name",
-        "type": "fadeIn",
-        "duration": 1000,
+        "type": "zoomIn",
+        "duration": 1200,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "easeOutElastic",
         "properties": {}
       },
       {
         "id": "anim_cta_in",
         "targetId": "el_final_cta",
-        "type": "fadeIn",
+        "type": "slideIn",
         "duration": 800,
         "group": "in",
-        "easing": "easeOut",
+        "easing": "cubicBezier:0.16,1,0.3,1",
+        "properties": {}
+      },
+      {
+        "id": "anim_cta_loop",
+        "targetId": "el_final_cta",
+        "type": "breathe",
+        "duration": 2500,
+        "group": "loop",
+        "easing": "easeInOut",
         "properties": {}
       }
     ],
@@ -628,8 +781,96 @@
       "shadowOffsetY": 0,
       "backgroundColor": ""
     },
-    "keyframeTracks": [],
-    "transitions": []
+    "keyframeTracks": [
+      {
+        "id": "kf_product_scale",
+        "targetId": "el_product",
+        "propertyType": "scale",
+        "enabled": true,
+        "keyframes": [
+          { "id": "kf_ps1", "time": 1200, "properties": { "scaleX": 1, "scaleY": 1 }, "easing": "easeInOut" },
+          { "id": "kf_ps2", "time": 6000, "properties": { "scaleX": 1.04, "scaleY": 1.04 }, "easing": "easeInOut" }
+        ]
+      },
+      {
+        "id": "kf_line1_scale",
+        "targetId": "el_line1",
+        "propertyType": "scale",
+        "enabled": true,
+        "keyframes": [
+          { "id": "kf_l1s1", "time": 0, "properties": { "scaleX": 0, "scaleY": 1 }, "easing": "cubicBezier:0.16,1,0.3,1" },
+          { "id": "kf_l1s2", "time": 600, "properties": { "scaleX": 1, "scaleY": 1 }, "easing": "linear" }
+        ]
+      },
+      {
+        "id": "kf_line2_scale",
+        "targetId": "el_line2",
+        "propertyType": "scale",
+        "enabled": true,
+        "keyframes": [
+          { "id": "kf_l2s1", "time": 0, "properties": { "scaleX": 0, "scaleY": 1 }, "easing": "cubicBezier:0.16,1,0.3,1" },
+          { "id": "kf_l2s2", "time": 600, "properties": { "scaleX": 1, "scaleY": 1 }, "easing": "linear" }
+        ]
+      },
+      {
+        "id": "kf_line3_scale",
+        "targetId": "el_line3",
+        "propertyType": "scale",
+        "enabled": true,
+        "keyframes": [
+          { "id": "kf_l3s1", "time": 0, "properties": { "scaleX": 0, "scaleY": 1 }, "easing": "cubicBezier:0.16,1,0.3,1" },
+          { "id": "kf_l3s2", "time": 600, "properties": { "scaleX": 1, "scaleY": 1 }, "easing": "linear" }
+        ]
+      },
+      {
+        "id": "kf_final_scale",
+        "targetId": "el_final_name",
+        "propertyType": "scale",
+        "enabled": true,
+        "keyframes": [
+          { "id": "kf_fs1", "time": 1200, "properties": { "scaleX": 1, "scaleY": 1 }, "easing": "easeInOut" },
+          { "id": "kf_fs2", "time": 2500, "properties": { "scaleX": 1.03, "scaleY": 1.03 }, "easing": "easeInOut" }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "id": "trans_feat1_feat2",
+        "trackId": "track_features",
+        "sourceElementId": "el_feat1_title",
+        "targetElementId": "el_feat2_title",
+        "type": "dissolve",
+        "duration": 600,
+        "easing": "easeInOut"
+      },
+      {
+        "id": "trans_feat2_feat3",
+        "trackId": "track_features",
+        "sourceElementId": "el_feat2_title",
+        "targetElementId": "el_feat3_title",
+        "type": "dissolve",
+        "duration": 600,
+        "easing": "easeInOut"
+      },
+      {
+        "id": "trans_sub1_sub2",
+        "trackId": "track_subtitles",
+        "sourceElementId": "el_feat1_sub",
+        "targetElementId": "el_feat2_sub",
+        "type": "dissolve",
+        "duration": 600,
+        "easing": "easeInOut"
+      },
+      {
+        "id": "trans_sub2_sub3",
+        "trackId": "track_subtitles",
+        "sourceElementId": "el_feat2_sub",
+        "targetElementId": "el_feat3_sub",
+        "type": "dissolve",
+        "duration": 600,
+        "easing": "easeInOut"
+      }
+    ]
   },
   "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
 }

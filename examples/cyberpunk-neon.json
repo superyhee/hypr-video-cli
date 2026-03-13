@@ -1,0 +1,697 @@
+{
+  "canvasState": {
+    "width": 1920,
+    "height": 1080,
+    "backgroundColor": "#050510",
+    "maxTime": 18000,
+    "elements": [
+      {
+        "id": "el_fx_neon",
+        "type": "effect",
+        "name": "Neon Edge",
+        "timeFrame": { "start": 0, "end": 18000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "neonEdge",
+              "effectParams": {
+                "intensity": 0.7,
+                "edgeWidth": 1.5,
+                "bgDarken": 0.8
+              },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_fx_vignette",
+        "type": "effect",
+        "name": "Vignette",
+        "timeFrame": { "start": 0, "end": 18000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "vignette",
+              "effectParams": {
+                "intensity": 0.6,
+                "radius": 0.6,
+                "softness": 0.7,
+                "colorR": 0,
+                "colorG": 0,
+                "colorB": 0.1
+              },
+              "enabled": true
+            }
+          ]
+        }
+      },
+
+      {
+        "id": "el_fx_rgb_s1",
+        "type": "effect",
+        "name": "RGB Split Scene 1",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "rgbSplit",
+              "effectParams": { "amount": 5, "angle": 180, "speed": 1.5 },
+              "enabled": true
+            },
+            {
+              "effectType": "sparkle",
+              "effectParams": { "intensity": 0.3, "density": 0.4, "size": 2 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_s1_line_top",
+        "type": "shape",
+        "name": "Top Line",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "opacity": 0.5,
+        "placement": {
+          "x": 460,
+          "y": 350,
+          "width": 1000,
+          "height": 2,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "shapeType": "rect",
+          "fill": "#00ffff",
+          "stroke": "",
+          "strokeWidth": 0,
+          "rx": 0,
+          "ry": 0
+        }
+      },
+      {
+        "id": "el_s1_title",
+        "type": "text",
+        "name": "Cyber Title",
+        "timeFrame": { "start": 300, "end": 6000 },
+        "placement": {
+          "x": 210,
+          "y": 380,
+          "width": 1500,
+          "height": 150,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "NEON CITY",
+          "fontFamily": "Arial",
+          "fontSize": 140,
+          "fontWeight": 900,
+          "fontColor": "#ff00ff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s1_sub",
+        "type": "text",
+        "name": "Subtitle",
+        "timeFrame": { "start": 1200, "end": 6000 },
+        "placement": {
+          "x": 460,
+          "y": 560,
+          "width": 1000,
+          "height": 40,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "Welcome to the future",
+          "fontFamily": "Arial",
+          "fontSize": 32,
+          "fontWeight": 300,
+          "fontColor": "#00ffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s1_line_bot",
+        "type": "shape",
+        "name": "Bottom Line",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "opacity": 0.5,
+        "placement": {
+          "x": 460,
+          "y": 620,
+          "width": 1000,
+          "height": 2,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "shapeType": "rect",
+          "fill": "#00ffff",
+          "stroke": "",
+          "strokeWidth": 0,
+          "rx": 0,
+          "ry": 0
+        }
+      },
+
+      {
+        "id": "el_fx_glitch_s2",
+        "type": "effect",
+        "name": "Glitch Scene 2",
+        "timeFrame": { "start": 6000, "end": 12000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "glitchBlock",
+              "effectParams": { "intensity": 0.2, "blockSize": 15, "speed": 2 },
+              "enabled": true
+            },
+            {
+              "effectType": "colorShift",
+              "effectParams": { "amount": 0.3, "speed": 2 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_s2_label",
+        "type": "text",
+        "name": "Section Label",
+        "timeFrame": { "start": 6000, "end": 12000 },
+        "opacity": 0.4,
+        "placement": {
+          "x": 560,
+          "y": 280,
+          "width": 800,
+          "height": 25,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "SYSTEM://OVERRIDE",
+          "fontFamily": "Courier New",
+          "fontSize": 18,
+          "fontWeight": 600,
+          "fontColor": "#00ff00",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s2_text",
+        "type": "text",
+        "name": "Scene 2 Main",
+        "timeFrame": { "start": 6500, "end": 12000 },
+        "placement": {
+          "x": 260,
+          "y": 380,
+          "width": 1400,
+          "height": 120,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "HACK THE",
+          "fontFamily": "Arial",
+          "fontSize": 108,
+          "fontWeight": 900,
+          "fontColor": "#ffffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s2_text2",
+        "type": "text",
+        "name": "Scene 2 Sub",
+        "timeFrame": { "start": 7500, "end": 12000 },
+        "placement": {
+          "x": 260,
+          "y": 510,
+          "width": 1400,
+          "height": 120,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "MAINFRAME",
+          "fontFamily": "Arial",
+          "fontSize": 108,
+          "fontWeight": 900,
+          "fontColor": "#00ffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s2_code",
+        "type": "text",
+        "name": "Code Line",
+        "timeFrame": { "start": 9000, "end": 12000 },
+        "opacity": 0.3,
+        "placement": {
+          "x": 410,
+          "y": 680,
+          "width": 1100,
+          "height": 25,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "> access_granted: true | port: 8080 | status: CONNECTED",
+          "fontFamily": "Courier New",
+          "fontSize": 16,
+          "fontWeight": 400,
+          "fontColor": "#00ff00",
+          "textAlign": "center"
+        }
+      },
+
+      {
+        "id": "el_fx_s3",
+        "type": "effect",
+        "name": "Final Scene FX",
+        "timeFrame": { "start": 12000, "end": 18000 },
+        "placement": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "effectLayers": [
+            {
+              "effectType": "glow",
+              "effectParams": {
+                "intensity": 0.5,
+                "radius": 12,
+                "threshold": 0.4
+              },
+              "enabled": true
+            },
+            {
+              "effectType": "rgbSplit",
+              "effectParams": { "amount": 3, "angle": 90, "speed": 1 },
+              "enabled": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "el_s3_box",
+        "type": "shape",
+        "name": "CTA Box",
+        "timeFrame": { "start": 12000, "end": 18000 },
+        "opacity": 0.15,
+        "placement": {
+          "x": 510,
+          "y": 380,
+          "width": 900,
+          "height": 320,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "shapeType": "rect",
+          "fill": "#ff00ff",
+          "stroke": "#ff00ff",
+          "strokeWidth": 2,
+          "rx": 4,
+          "ry": 4
+        }
+      },
+      {
+        "id": "el_s3_title",
+        "type": "text",
+        "name": "CTA Title",
+        "timeFrame": { "start": 12500, "end": 18000 },
+        "placement": {
+          "x": 510,
+          "y": 420,
+          "width": 900,
+          "height": 80,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "JOIN US",
+          "fontFamily": "Arial",
+          "fontSize": 72,
+          "fontWeight": 900,
+          "fontColor": "#ffffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s3_date",
+        "type": "text",
+        "name": "Date",
+        "timeFrame": { "start": 13500, "end": 18000 },
+        "placement": {
+          "x": 510,
+          "y": 530,
+          "width": 900,
+          "height": 40,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "2026.03.28 // 20:00 UTC",
+          "fontFamily": "Courier New",
+          "fontSize": 28,
+          "fontWeight": 600,
+          "fontColor": "#00ffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_s3_url",
+        "type": "text",
+        "name": "URL",
+        "timeFrame": { "start": 14500, "end": 18000 },
+        "opacity": 0.6,
+        "placement": {
+          "x": 510,
+          "y": 610,
+          "width": 900,
+          "height": 30,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1
+        },
+        "properties": {
+          "text": "neoncity.dev",
+          "fontFamily": "Courier New",
+          "fontSize": 22,
+          "fontWeight": 400,
+          "fontColor": "#ff00ff",
+          "textAlign": "center"
+        }
+      }
+    ],
+    "tracks": [
+      {
+        "id": "track_fx_base",
+        "name": "Base FX",
+        "type": "effect",
+        "elementIds": ["el_fx_neon", "el_fx_vignette"],
+        "isVisible": true
+      },
+      {
+        "id": "track_fx_scene",
+        "name": "Scene FX",
+        "type": "effect",
+        "elementIds": ["el_fx_rgb_s1", "el_fx_glitch_s2", "el_fx_s3"],
+        "isVisible": true
+      },
+      {
+        "id": "track_text",
+        "name": "Text",
+        "type": "text",
+        "elementIds": [
+          "el_s1_title",
+          "el_s1_sub",
+          "el_s2_label",
+          "el_s2_text",
+          "el_s2_text2",
+          "el_s2_code",
+          "el_s3_title",
+          "el_s3_date",
+          "el_s3_url"
+        ],
+        "isVisible": true
+      },
+      {
+        "id": "track_shapes",
+        "name": "Shapes",
+        "type": "shape",
+        "elementIds": ["el_s1_line_top", "el_s1_line_bot", "el_s3_box"],
+        "isVisible": true
+      }
+    ],
+    "animations": [
+      {
+        "id": "a_01",
+        "targetId": "el_s1_line_top",
+        "type": "fadeIn",
+        "duration": 400,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_02",
+        "targetId": "el_s1_line_top",
+        "type": "fadeOut",
+        "duration": 300,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_03",
+        "targetId": "el_s1_title",
+        "type": "zoomIn",
+        "duration": 1000,
+        "group": "in",
+        "easing": "easeOutElastic",
+        "properties": {}
+      },
+      {
+        "id": "a_04",
+        "targetId": "el_s1_title",
+        "type": "fadeOut",
+        "duration": 600,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_05",
+        "targetId": "el_s1_sub",
+        "type": "fadeIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_06",
+        "targetId": "el_s1_sub",
+        "type": "fadeOut",
+        "duration": 500,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_07",
+        "targetId": "el_s1_line_bot",
+        "type": "fadeIn",
+        "duration": 400,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_08",
+        "targetId": "el_s1_line_bot",
+        "type": "fadeOut",
+        "duration": 300,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_10",
+        "targetId": "el_s2_label",
+        "type": "fadeIn",
+        "duration": 500,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_11",
+        "targetId": "el_s2_label",
+        "type": "fadeOut",
+        "duration": 400,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_12",
+        "targetId": "el_s2_text",
+        "type": "slideIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_13",
+        "targetId": "el_s2_text",
+        "type": "fadeOut",
+        "duration": 600,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_14",
+        "targetId": "el_s2_text2",
+        "type": "slideIn",
+        "duration": 800,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_15",
+        "targetId": "el_s2_text2",
+        "type": "fadeOut",
+        "duration": 600,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_16",
+        "targetId": "el_s2_code",
+        "type": "fadeIn",
+        "duration": 600,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_17",
+        "targetId": "el_s2_code",
+        "type": "fadeOut",
+        "duration": 400,
+        "group": "out",
+        "easing": "easeIn",
+        "properties": {}
+      },
+      {
+        "id": "a_20",
+        "targetId": "el_s3_box",
+        "type": "fadeIn",
+        "duration": 600,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_21",
+        "targetId": "el_s3_title",
+        "type": "bounceIn",
+        "duration": 1000,
+        "group": "in",
+        "easing": "easeOutBounce",
+        "properties": {}
+      },
+      {
+        "id": "a_22",
+        "targetId": "el_s3_date",
+        "type": "fadeIn",
+        "duration": 700,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_23",
+        "targetId": "el_s3_url",
+        "type": "fadeIn",
+        "duration": 600,
+        "group": "in",
+        "easing": "easeOut",
+        "properties": {}
+      },
+      {
+        "id": "a_24",
+        "targetId": "el_s3_title",
+        "type": "pulse",
+        "duration": 2000,
+        "group": "loop",
+        "easing": "easeInOut",
+        "properties": {}
+      }
+    ],
+    "captions": [],
+    "globalCaptionStyle": {
+      "fontSize": 36,
+      "fontFamily": "Arial",
+      "fontColor": "#ffffff",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 1.2,
+      "charSpacing": 0,
+      "styles": [],
+      "strokeWidth": 0,
+      "strokeColor": "#000000",
+      "shadowColor": "",
+      "shadowBlur": 0,
+      "shadowOffsetX": 0,
+      "shadowOffsetY": 0,
+      "backgroundColor": ""
+    },
+    "keyframeTracks": [],
+    "transitions": []
+  },
+  "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
+}

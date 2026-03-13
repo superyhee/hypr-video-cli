@@ -20,39 +20,37 @@ Every visual or audio item in the video is an element. Elements are placed on th
   "name": "Title",
   "opacity": 1,
   "timeFrame": { "start": 0, "end": 5000 },
-  "placement": {
-    "x": 100, "y": 200,
-    "width": 800, "height": 100,
-    "rotation": 0,
-    "scaleX": 1, "scaleY": 1
-  },
+  "placement": { "x": 100, "y": 200, "width": 800, "height": 100, "rotation": 0, "scaleX": 1, "scaleY": 1 },
   "properties": { ... }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | yes | Unique ID. Use prefix: `el_` + random chars |
-| `type` | string | yes | `video` / `audio` / `image` / `text` / `shape` / `gif` / `svg` / `effect` |
-| `name` | string | yes | Display name |
-| `opacity` | number | no | 0.0–1.0, default 1. **TOP-LEVEL, not in placement** |
-| `timeFrame.start` | number | yes | Start time in ms |
-| `timeFrame.end` | number | yes | End time in ms |
-| `placement` | object | yes | Position and transform (see below) |
-| `properties` | object | yes | Type-specific properties (see below) |
+| Field             | Type   | Required | Notes                                                                     |
+| ----------------- | ------ | -------- | ------------------------------------------------------------------------- |
+| `id`              | string | yes      | `el_` + random suffix                                                     |
+| `type`            | string | yes      | `video` / `audio` / `image` / `text` / `shape` / `gif` / `svg` / `effect` |
+| `name`            | string | yes      | Display name                                                              |
+| `opacity`         | number | no       | 0–1, default 1. **Top-level only**                                        |
+| `blendMode`       | string | no       | `"multiply"` / `"screen"` / `"overlay"` / `"normal"`                      |
+| `timeFrame.start` | number | yes      | ms                                                                        |
+| `timeFrame.end`   | number | yes      | ms                                                                        |
 
-### placement
+### placement fields
+
+`x`, `y`, `width`, `height` (px), `rotation` (degrees), `scaleX`, `scaleY` (default 1), `flipX`, `flipY` (boolean, image/video/gif only)
+
+## Shared: border & filters (video and image)
+
+Both `video` and `image` support identical `border` and `filters` objects:
 
 ```json
-{
-  "x": 0, "y": 0,
-  "width": 1920, "height": 1080,
-  "rotation": 0,
-  "scaleX": 1, "scaleY": 1
-}
+"border": { "width": 4, "color": "#ffffff", "style": "solid", "borderRadius": 12 }
+"filters": { "brightness": 0, "contrast": 0, "saturation": 0, "hue": 0, "blur": 0 }
+"effect": { "type": "grayscale", "intensity": 1 }
 ```
 
-Do **NOT** put `opacity` here. It will be silently ignored.
+- `filters` range: brightness/contrast/saturation −1 to 1, hue −180 to 180, blur px
+- `effect.type`: `"grayscale"` / `"sepia"` / `"invert"`
 
 ## Element Types
 
@@ -67,20 +65,29 @@ Do **NOT** put `opacity` here. It will be silently ignored.
     "fontSize": 48,
     "fontWeight": 700,
     "fontColor": "#ffffff",
-    "textAlign": "center"
+    "textAlign": "center",
+    "styles": ["bold"],
+    "lineHeight": 1.2,
+    "charSpacing": 0,
+    "backgroundColor": "transparent",
+    "strokeColor": "#000000",
+    "strokeWidth": 2,
+    "shadowColor": "#000000",
+    "shadowBlur": 8,
+    "shadowOffsetX": 4,
+    "shadowOffsetY": 4,
+    "useGradient": false,
+    "gradientColors": ["#ff0000", "#0000ff"]
   }
 }
 ```
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `text` | string | — | Text content |
-| `fontFamily` | string | — | Font name. Use system fonts (Arial, Georgia) or registered Google Fonts |
-| `fontSize` | number | — | Font size in pixels |
-| `fontWeight` | number/string | 400 | 100–900 or `"bold"` |
-| `fontColor` | string | `"#000000"` | Text color (CSS color). **Use `fontColor`, NOT `fill`** — `fill` is for shapes only |
-| `textAlign` | string | `"left"` | `"left"` / `"center"` / `"right"` |
-| `styles` | string[] | `[]` | `["bold"]`, `["italic"]`, `["underline"]`, `["linethrough"]` |
+Key notes:
+
+- `fontColor` (NOT `fill`) — missing fontColor defaults to `#000000` (invisible on dark bg)
+- `styles`: `"bold"` / `"italic"` / `"underline"` / `"linethrough"`
+- `useGradient: true` replaces `fontColor` with top-to-bottom gradient across `gradientColors`
+- Safe fonts: `Arial`, `Georgia`, `Verdana`, `Times New Roman`, `Courier New`. Custom fonts → use `fontAssets`.
 
 ### video
 
@@ -90,25 +97,27 @@ Do **NOT** put `opacity` here. It will be silently ignored.
   "properties": {
     "src": "https://cdn.example.com/video.mp4",
     "volume": 1,
-    "playbackRate": 1
+    "playbackRate": 1,
+    "trimStart": 0,
+    "trimEnd": 0,
+    "border": { ... },
+    "filters": { ... },
+    "effect": { ... }
   }
 }
 ```
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `src` | string | — | Video URL (see src formats below) |
-| `volume` | number | 1 | 0.0–1.0 |
-| `playbackRate` | number | 1 | Playback speed multiplier |
-| `trimStart` | number | 0 | Trim start in ms |
-| `trimEnd` | number | 0 | Trim end in ms |
 
 ### image
 
 ```json
 {
   "type": "image",
-  "properties": { "src": "https://cdn.example.com/photo.jpg" }
+  "properties": {
+    "src": "https://cdn.example.com/photo.jpg",
+    "border": { ... },
+    "filters": { ... },
+    "effect": { ... }
+  }
 }
 ```
 
@@ -128,9 +137,7 @@ Do **NOT** put `opacity` here. It will be silently ignored.
 }
 ```
 
-`shapeType`: `"rect"` / `"circle"` / `"triangle"`
-
-`rx`/`ry`: Corner radius (rect only).
+`shapeType`: `"rect"` / `"circle"` / `"triangle"`. `rx`/`ry`: corner radius (rect only). Use `fill` (NOT `fontColor`).
 
 ### audio
 
@@ -145,36 +152,29 @@ Do **NOT** put `opacity` here. It will be silently ignored.
 }
 ```
 
-Audio elements have no visual placement but need `timeFrame` for timing.
-
-### effect
-
-```json
-{
-  "type": "effect",
-  "properties": {
-    "effectLayers": [
-      { "effectType": "gaussianBlur", "effectParams": { "radius": 10 }, "enabled": true }
-    ]
-  }
-}
-```
+No visual placement needed, but `timeFrame` is required.
 
 ## Tracks
 
 Tracks group elements into visual layers on the timeline. Every element **MUST** belong to exactly one track.
 
 ```json
-{ "id": "track_1", "name": "Video", "type": "video", "elementIds": ["el_a", "el_b"], "isVisible": true }
+{
+  "id": "track_1",
+  "name": "Video",
+  "type": "video",
+  "elementIds": ["el_a", "el_b"],
+  "isVisible": true
+}
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | yes | Unique track ID |
-| `name` | string | yes | Display name |
-| `type` | string | yes | `video` / `audio` / `text` / `shape` / `image` / `effect` / `caption` |
-| `elementIds` | string[] | yes | Ordered element IDs |
-| `isVisible` | boolean | **yes** | **MUST be `true`** to render |
+| Field        | Type     | Required | Description                                                           |
+| ------------ | -------- | -------- | --------------------------------------------------------------------- |
+| `id`         | string   | yes      | Unique track ID                                                       |
+| `name`       | string   | yes      | Display name                                                          |
+| `type`       | string   | yes      | `video` / `audio` / `text` / `shape` / `image` / `effect` / `caption` |
+| `elementIds` | string[] | yes      | Ordered element IDs                                                   |
+| `isVisible`  | boolean  | **yes**  | **MUST be `true`** to render                                          |
 
 ### Rendering Order
 
@@ -195,11 +195,11 @@ Tracks group elements into visual layers on the timeline. Every element **MUST**
 
 ## src Formats
 
-| Format | Example | Description |
-|--------|---------|-------------|
-| Remote URL | `https://cdn.example.com/file.mp4` | Server downloads directly |
-| Local media | `local://media_abc123` | Server resolves via MediaRepository → S3 |
-| Brand logo | `brandlogo://logo_id\|Logo Name` | Server resolves from brand kit |
+| Format      | Example                            | Description               |
+| ----------- | ---------------------------------- | ------------------------- |
+| Remote URL  | `https://cdn.example.com/file.mp4` | Server downloads directly |
+| Local media | `local://media_abc123`             |                           |
+|             |
 
 ## ID Convention
 
