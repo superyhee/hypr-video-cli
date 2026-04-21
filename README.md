@@ -5,7 +5,7 @@
 
 A Claude Code Skill for creating programmatic videos with CLI.
 
-Describe your video in natural language, and Claude builds the structured JSON (text, shapes, animations, transitions, captions, keyframes, 50+ visual effects) and renders it to MP4 — all from your terminal. Powered by skia-canvas + FFmpeg.
+Describe your video in natural language, and Claude builds the config (text, shapes, animations, transitions, captions, keyframes, 50+ visual effects) and renders it to MP4 — all from your terminal. Powered by skia-canvas + FFmpeg.
 
 ## Demo
 
@@ -17,13 +17,16 @@ Describe your video in natural language, and Claude builds the structured JSON (
  "Create a product launch video"
             │
             ▼
-   ┌─────────────────┐
-   │  Claude builds   │
-   │  canvasState JSON │
-   └────────┬─────────┘
+   ┌─────────────────────┐
+   │  Claude writes       │
+   │  config .mjs         │
+   └────────┬────────────┘
             │
             ▼
-   npx hypr-video-cli input.json -o output.mp4
+   node scripts/gen_canvas.mjs config.mjs output.json
+            │
+            ▼
+   npx hypr-video-cli output.json -o output.mp4
             │
             ▼
        📹 output.mp4
@@ -32,11 +35,14 @@ Describe your video in natural language, and Claude builds the structured JSON (
 ## Features
 
 - 🎬 Text, images, video clips, shapes, audio — all composable on a timeline
-- ✨ 30+ animations (fade, slide, zoom, bounce, wave, character-by-character effects)
+- ✨ 44 animations (fade, blur, slide, zoom, bounce, wave, per-character effects)
 - 🔀 20+ transitions (crossfade, wipe, iris, glitch, blur between clips)
 - 🎨 50+ visual effects (film grain, VHS, glow, rain, snow, color grading, and more)
 - 🎯 Keyframe animation for position, scale, rotation, opacity over time
 - 💬 Timed captions with word-level karaoke support
+- 🎨 24 built-in themes with color palettes, type scale, and 11 role helpers
+- 🖼️ 65 SVG helpers — orbs, dot grids, vignettes, particles, charts, and more
+- 🔤 18 bundled fonts — Montserrat, Playfair Display, Fira Code, Noto Sans SC, and more
 - 📐 Any aspect ratio — 16:9, 9:16 (TikTok/Reels), 1:1 (Instagram), 4:3
 - 🤖 Claude Code Skill included — generate videos from natural language
 
@@ -51,18 +57,11 @@ npm install -g hypr-video-cli
 hypr-video-cli input.json -o output.mp4
 ```
 
-Try with the built-in examples (clone the repo first):
-
-```bash
-git clone https://github.com/superyhee/hypr-video-cli.git
-npx hypr-video-cli hypr-video-cli/examples/hello-world.json -o hello.mp4
-```
-
 Prerequisites: Node.js >= 20, FFmpeg installed and in PATH.
 
 ## Claude Code Skill
 
-This project ships as a Claude Code skill — install it and Claude generates videos from natural language.
+This project ships as a Claude Code skill — install it and Claude generates videos from natural language using the high-level config API.
 
 ```bash
 # Clone the repo, then install the skill
@@ -73,213 +72,201 @@ git clone https://github.com/superyhee/hypr-video-cli.git
 
 Then just describe what you want:
 
-> "Create a 15-second product launch video with a dark background, animated title, feature list that slides in, and a pricing CTA at the end"
+> "Create a 15-second SaaS promo video with a dark background, animated title, feature list that slides in, and a pricing CTA at the end"
 
-Claude builds the canvasState JSON, validates it, and renders the MP4 — no manual JSON editing needed. The `skill/references/` directory gives Claude detailed knowledge of every feature so it produces correct JSON on the first try.
+Claude writes a config `.mjs`, generates the canvasState JSON via `gen_canvas.mjs`, and renders the MP4 — no manual JSON editing needed.
 
-## Usage
+## Config-Based Workflow
+
+Instead of writing raw JSON, you write a high-level config file using themes, role helpers, and SVG helpers. The `gen_canvas.mjs` script converts it to canvasState JSON.
 
 ```bash
-# Basic render
-npx hypr-video-cli input.json -o output.mp4
-
-# Custom frame rate and quality
-npx hypr-video-cli input.json -o out.mp4 --fps 60 --quality high
-
-# Override output resolution
-npx hypr-video-cli input.json -o out.mp4 --width 1280 --height 720
-
-# Quiet mode — prints only output path (useful for scripting)
-npx hypr-video-cli input.json -q
-
-# Validate JSON before rendering
-npx tsx scripts/validate-canvas-state.ts input.json
+# 1. Write config
+# 2. Generate JSON
+node scripts/gen_canvas.mjs /tmp/my-video.mjs /tmp/my-video.json
+# 3. Render
+npx hypr-video-cli /tmp/my-video.json -o ./output/my-video.mp4
 ```
 
-### CLI Options
+### Config Structure
 
-| Option                | Default                   | Description                                                                    |
-| --------------------- | ------------------------- | ------------------------------------------------------------------------------ |
-| `-o, --output <path>` | `./output/video-<ts>.mp4` | Output file path                                                               |
-| `--fps <n>`           | `30`                      | Frame rate (`24` / `30` / `60`)                                                |
-| `--quality <level>`   | `medium`                  | `low` (1 Mbps) / `medium` (2.5 Mbps) / `high` (5 Mbps) / `very_high` (10 Mbps) |
-| `--format <fmt>`      | `mp4`                     | `mp4` (H.264) / `mov` / `mp3` (audio only)                                     |
-| `--width <n>`         | from JSON                 | Override output width                                                          |
-| `--height <n>`        | from JSON                 | Override output height                                                         |
-| `-q, --quiet`         | `false`                   | Only print output path                                                         |
+```js
+export default function build(h) {
+  const {
+    makeShape, makeEffect, buildCanvas, theme, autoTracks,
+    svgVignette, svgGradientOrb, svgDotGrid, svgParticles,
+  } = h;
 
-CLI options override values in the JSON file.
+  const t = theme("cyberpunk");   // colors + type scale + role helpers + fonts
+  const MAX = 20000;
 
-## Input JSON Format
+  // Global background layers
+  const g_dot = svgDotGrid("g_dot", { start: 0, end: MAX, opacity: 0.04, color: t.ACCENT });
+  const g_vig = svgVignette("g_vig", { start: 0, end: MAX, opacity: 0.6 });
 
-The CLI accepts two input formats:
+  // Scene 1: Hero (0–7s)
+  const s1_title = t.hero("s1_title", "Product Name", {
+    x: 160, y: 340, start: 0, end: 7000,
+    animIn: ["blurIn", 1200], animOut: ["blurOut", 700],
+    kf: { scale: { dur: 7000, amp: 0.02 } },
+  });
+  const s1_div = makeShape("s1_div", "rect", t.ACCENT, {
+    x: 760, y: 510, w: 400, h: 3, start: 500, end: 6500,
+    animIn: ["expandIn", 500], animOut: ["fadeOut", 300],
+  });
+  const s1_sub = t.subtitle("s1_sub", "Tagline goes here", {
+    x: 260, y: 540, start: 700, end: 6500,
+    animIn: ["fadeIn", 800], animOut: ["fadeOut", 500],
+  });
 
-### Full payload (with outputFormat)
+  const elements = [g_dot, g_vig, s1_title, s1_div, s1_sub];
 
-```json
-{
-  "canvasState": {
-    "width": 1920,
-    "height": 1080,
-    "backgroundColor": "#000000",
-    "maxTime": 5000,
-    "elements": [ ... ],
-    "tracks": [ ... ],
-    "animations": [],
-    "captions": [],
-    "globalCaptionStyle": { ... },
-    "keyframeTracks": [],
-    "transitions": []
-  },
-  "outputFormat": { "fps": 30, "quality": "medium", "format": "mp4" },
-  "resolution": { "width": 1280, "height": 720 }
+  return buildCanvas({
+    bg: t.BG, maxTime: MAX,
+    fontAssets: {
+      ...t.fonts,
+      // Add extra fonts (e.g. CJK):
+      "Noto Sans SC": { url: "skill/assets/fonts/NotoSansSC-Variable.ttf", fileType: "ttf" },
+    },
+    elements, tracks: autoTracks(elements),
+    fps: 30, quality: "medium",
+  });
 }
 ```
 
-### Bare canvasState (defaults applied)
+## Themes
 
-```json
-{
-  "width": 1920,
-  "height": 1080,
-  "backgroundColor": "#000000",
-  "maxTime": 5000,
-  "elements": [ ... ],
-  "tracks": [ ... ],
-  "animations": [],
-  "captions": [],
-  "globalCaptionStyle": { ... }
-}
+24 built-in themes — each provides `t.BG`, `t.PRIMARY`, `t.SECONDARY`, `t.ACCENT`, `t.SUCCESS`, a type scale, bundled fonts, and 11 role helpers.
+
+```js
+const t = theme("sunset");                        // named theme
+const t = theme("ocean", { ACCENT: "#0d9488" });  // with color override
 ```
 
-### canvasState Top-Level Fields
+| Theme | Accent | Best For | | Theme | Accent | Best For |
+| ----- | ------ | -------- | - | ----- | ------ | -------- |
+| `cyberpunk` | purple | Tech, SaaS | | `neon` | magenta | Nightclub, music |
+| `cinematic` | blue | Apple-style | | `sunset` | orange | Travel, lifestyle |
+| `gradient` | lavender | Creative | | `tech` | green | Hacker, terminal |
+| `retro` | orange | Gaming | | `slate` | gray | Industrial, B2B |
+| `midnight` | indigo | Startups | | `noir` | white | Film noir |
+| `ember` | red | Sales, food | | `electric` | blue | Sports, esports |
+| `ocean` | sky blue | Corporate | | `vintage` | sepia | Nostalgia |
+| `forest` | green | Health, eco | | `professional` | blue | Business (light) |
+| `gold` | amber | Luxury | | `minimal` | black | Clean (light) |
+| `aurora` | cyan | Science | | `warm` | orange | Food, craft (light) |
+| `coral` | rose | Fashion | | `pastel` | purple | Education (light) |
+| `monochrome` | white | Editorial | | `candy` | fuchsia | Youth, social |
 
-| Field                | Type   | Required | Description                                                                             |
-| -------------------- | ------ | -------- | --------------------------------------------------------------------------------------- |
-| `width`              | number | yes      | Canvas width in px (e.g. `1920`)                                                        |
-| `height`             | number | yes      | Canvas height in px (e.g. `1080`)                                                       |
-| `backgroundColor`    | string | yes      | CSS color or gradient (e.g. `"#000000"`, `"linear-gradient(135deg, #667eea, #764ba2)"`) |
-| `maxTime`            | number | yes      | Total duration in ms. Must be >= latest element `timeFrame.end`                         |
-| `elements`           | array  | yes      | All visual/audio elements                                                               |
-| `tracks`             | array  | yes      | Track groupings (layer order)                                                           |
-| `animations`         | array  | yes      | Entrance/exit/loop animations (can be `[]`)                                             |
-| `captions`           | array  | yes      | Timed subtitles (can be `[]`)                                                           |
-| `globalCaptionStyle` | object | yes      | Default caption styling (always provide full object)                                    |
-| `keyframeTracks`     | array  | no       | Property animation over time                                                            |
-| `transitions`        | array  | no       | Blend effects between adjacent clips                                                    |
+## Role Helpers
 
-### Common Canvas Sizes
+11 pre-styled text helpers — always use these instead of raw `makeText`.
 
-| Name            | Width | Height | Use Case               |
-| --------------- | ----- | ------ | ---------------------- |
-| 1080p Landscape | 1920  | 1080   | YouTube, general video |
-| 720p Landscape  | 1280  | 720    | Smaller file size      |
-| 9:16 Portrait   | 1080  | 1920   | TikTok, Reels, Shorts  |
-| 1:1 Square      | 1080  | 1080   | Instagram feed         |
-| 4:3 Standard    | 1440  | 1080   | Presentations          |
-
-## Element Types
-
-Every visual or audio item is an element with a unique ID, time range, and placement.
-
-```json
-{
-  "id": "el_abc123",
-  "type": "text",
-  "name": "Title",
-  "opacity": 1,
-  "timeFrame": { "start": 0, "end": 5000 },
-  "placement": { "x": 100, "y": 200, "width": 800, "height": 100, "rotation": 0, "scaleX": 1, "scaleY": 1 },
-  "properties": { ... }
-}
+```js
+t.hero("id", "Title", { x, y, start, end, animIn: ["blurIn", 1000], ... })
 ```
 
-| Type     | Key Properties                                                                        | Description                                          |
-| -------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `text`   | `text`, `fontFamily`, `fontSize`, `fontWeight`, `fontColor`, `textAlign`              | Text overlay. Use `fontColor` for color (NOT `fill`) |
-| `video`  | `src`, `volume`, `playbackRate`, `trimStart`, `trimEnd`                               | Video clip                                           |
-| `image`  | `src`                                                                                 | Static image                                         |
-| `shape`  | `shapeType` (`rect`/`circle`/`triangle`), `fill`, `stroke`, `strokeWidth`, `rx`, `ry` | Vector shape                                         |
-| `audio`  | `src`, `volume`, `playbackRate`                                                       | Audio track (no visual)                              |
-| `effect` | `effectLayers` (array of effect configs)                                              | Post-processing visual effects                       |
+| Helper | Size | Weight | Color | Notes |
+| ------ | ---- | ------ | ----- | ----- |
+| `t.hero` | 120 | 700 | PRIMARY | Main headline |
+| `t.display` | 96 | 700 | ACCENT | Large accent title |
+| `t.heading` | 64 | 700 | PRIMARY | Section heading |
+| `t.subheading` | 48 | 600 | PRIMARY | Sub-section heading |
+| `t.subtitle` | 36 | 400 | SECONDARY | Supporting text |
+| `t.cta` | 28 | 700 | PRIMARY | Call to action |
+| `t.quote` | 28 | 400 | SECONDARY | Playfair Display |
+| `t.body` | 24 | 400 | SECONDARY | Body copy |
+| `t.code` | 20 | 400 | SECONDARY | Fira Code monospace |
+| `t.label` | 18 | 400 | SECONDARY | Labels |
+| `t.eyebrow` | 14 | 700 | ACCENT | Category tag above headline |
 
-## Animations
+## Inline Animations & Keyframes
 
-Animations attach to elements and control entrance, exit, and looping effects.
+Attach animations directly on any element — no separate animation objects needed.
 
-```json
-{
-  "id": "a_1",
-  "targetId": "el_1",
-  "type": "fadeIn",
-  "duration": 800,
-  "group": "in",
-  "easing": "easeOut",
-  "properties": {}
-}
+```js
+t.heading("id", "Title", {
+  x: 160, y: 300, start: 0, end: 8000,
+  animIn:   ["blurIn",  1000],          // entrance
+  animOut:  ["blurOut",  600],           // exit
+  animLoop: ["glow",    3000],           // looping effect
+  kf: { scale: { dur: 8000, amp: 0.02 } },  // subtle breathe keyframe
+})
 ```
 
-| Group               | Available Types                                                                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `in` (entrance)     | `fadeIn`, `slideIn`, `zoomIn`, `bounceIn`, `waveIn`, `dropIn`, `scatterIn`, `rotateInByCharacter`, `flipInByCharacter`, `elasticInByCharacter`, `shakeInByCharacter` |
-| `out` (exit)        | `fadeOut`, `slideOut`, `zoomOut`, `waveOut`, `dropOut`, `scatterOut`, `rotateOutByCharacter`, `flipOutByCharacter`, `elasticOutByCharacter`, `shakeOutByCharacter`   |
-| `loop` (continuous) | `breathe`, `rotate`, `bounce`, `shake`, `flash`, `zoom`, `pulse`, `swing`, `wobble`                                                                                  |
+| Group | Available Types |
+| ----- | --------------- |
+| `animIn` (22) | `fadeIn` · `slideIn` · `zoomIn` · `bounceIn` · `blurIn` · `expandIn` · `foldIn` · `curtainIn` · `irisIn` · `pixelateIn` · `elasticIn` · `spiralIn` · `morphIn` · `waveIn` · `dropIn` · `scatterIn` · `rotateInByCharacter` · `flipInByCharacter` · `elasticInByCharacter` · `shakeInByCharacter` · `rotateIn` · `flipIn` |
+| `animOut` (22) | `fadeOut` · `slideOut` · `zoomOut` · `bounceOut` · `blurOut` · `collapseOut` · `foldOut` · `curtainOut` · `irisOut` · `pixelateOut` · `spiralOut` · `dissolveOut` · `morphOut` · `waveOut` · `dropOut` · `scatterOut` · `rotateOutByCharacter` · `flipOutByCharacter` · `elasticOutByCharacter` · `shakeOutByCharacter` · `rotateOut` · `flipOut` |
+| `animLoop` (17) | `breathe` · `rotate` · `bounce` · `shake` · `flash` · `zoom` · `pulse` · `swing` · `wobble` · `heartbeat` · `rubberBand` · `jello` · `tada` · `glow` · `glitch` · `float` · `headShake` |
 
-Easing: `linear`, `easeIn`, `easeOut`, `easeInOut`, `easeInBounce`, `easeOutBounce`, `easeInElastic`, `easeOutElastic`, or custom `"cubicBezier:0.4,0,0.2,1"` / `"spring:180,12,1"`.
+**Easing:** `easeIn`, `easeOut`, `easeInOut`, `easeInBounce`, `easeOutBounce`, `easeInElastic`, `easeOutElastic`, `linear`, `"spring:180,12,1"`, `"cubicBezier:0.4,0,0.2,1"`
+
+**Keyframe presets:** `scale` (amp=±scaleXY) · `opacity` (amp=±opacity) · `position` (dx, dy)
+
+## SVG Helpers
+
+65 built-in SVG decorative elements — backgrounds, grids, particles, and UI components.
+
+```js
+svgVignette("vig", { start, end, opacity: 0.6 })
+svgGradientOrb("orb", { x, y, w, h, start, end, color: t.ACCENT, opacity: 0.15 })
+svgDotGrid("grid", { start, end, opacity: 0.05, color: t.ACCENT })
+svgParticles("fx", { start, end, count: 40, color: t.ACCENT })
+```
+
+| Category | Helpers |
+| -------- | ------- |
+| Background | `svgVignette`, `svgGradientOrb`, `svgDotGrid`, `svgHexGrid`, `svgCircuitBoard`, `svgNoiseField` |
+| Particles | `svgParticles`, `svgStarField`, `svgConfetti`, `svgFireworks` |
+| UI/Charts | `svgBarChart`, `svgLineChart`, `svgPieChart`, `svgProgressBar`, `svgCheckMark`, `svgNumberCounter` |
+| Decorative | `svgWaveform`, `svgDnaHelix`, `svgGlowRing`, `svgGeometry`, `svgCodeBlock`, ... |
+
+See `skill/references/svg-helpers.md` for all 65 helpers with full params.
+
+## Bundled Fonts
+
+18 fonts shipped in `skill/assets/fonts/`. System fonts (`Arial`, `Georgia`, `Verdana`, `Courier New`) need no registration.
+
+| Font | Best For |
+| ---- | -------- |
+| Montserrat | Headings, modern brands |
+| Playfair Display | Elegant, luxury |
+| Fira Code | Code, tech labels |
+| Noto Sans SC | Chinese / Japanese |
+| Poppins | Clean, SaaS |
+| Bebas Neue | Headlines, impact |
+| Dancing Script | Creative, invitations |
+| EB Garamond | Quotes, editorial |
+
+Full list and pairings: `skill/references/font-assets.md`
 
 ## Transitions
 
-Transitions blend between two adjacent elements on the same track.
+Blend between two adjacent elements on the same track.
 
-```json
-{
-  "id": "tr_1",
-  "trackId": "track_v",
-  "sourceElementId": "el_v1",
-  "targetElementId": "el_v2",
-  "type": "crossfade",
-  "duration": 500,
-  "easing": "easeInOut"
-}
-```
-
-| Category | Types                                                                                                     |
-| -------- | --------------------------------------------------------------------------------------------------------- |
-| Basic    | `crossfade`, `dissolve`, `fadeToBlack`, `fadeToWhite`                                                     |
-| Wipe     | `wipeLeft`, `wipeRight`, `wipeUp`, `wipeDown`, `radialWipe`                                               |
-| Slide    | `slideLeft`, `slideRight`, `slideUp`, `slideDown`                                                         |
+| Category | Types |
+| -------- | ----- |
+| Basic | `crossfade`, `dissolve`, `fadeToBlack`, `fadeToWhite` |
+| Wipe | `wipeLeft`, `wipeRight`, `wipeUp`, `wipeDown`, `radialWipe` |
+| Slide | `slideLeft`, `slideRight`, `slideUp`, `slideDown` |
 | Creative | `irisOpen`, `irisClose`, `curtainOpen`, `curtainClose`, `pixelate`, `blur`, `zoomIn`, `zoomOut`, `glitch` |
 
-## Keyframe Tracks
+## Visual Effects
 
-Animate element properties over time with interpolation between key points.
+50+ post-processing effects applied to the entire canvas.
 
-```json
-{
-  "id": "kf_1",
-  "targetId": "el_box",
-  "propertyType": "position",
-  "enabled": true,
-  "keyframes": [
-    {
-      "id": "k1",
-      "time": 0,
-      "properties": { "x": 0, "y": 400 },
-      "easing": "easeOut"
-    },
-    {
-      "id": "k2",
-      "time": 2000,
-      "properties": { "x": 1600, "y": 400 },
-      "easing": "linear"
-    }
-  ]
-}
-```
+| Category | Effect Types |
+| -------- | ------------ |
+| Pixel Math | `invert`, `duotone`, `colorShift`, `posterize`, `thermal` |
+| Convolution | `sharpen`, `emboss` |
+| Glitch | `rgbSplit`, `glitchBlock`, `shake` |
+| Spatial | `mirror`, `split`, `pixelate` |
+| Overlay | `flash`, `spotlight` |
+| Temporal | `echo` |
+| Text-based | `ascii` |
 
-Supported property types: `position`, `scale`, `rotation`, `opacity`, `speed`, `effectParam`.
-
-> Note: keyframe `time` is relative to the element's `timeFrame.start`, not the absolute timeline.
+Common presets: Glitch (`rgbSplit` + `glitchBlock` + `shake`) · Retro (`colorShift` + `echo` + `posterize`) · Dream (`lightLeak` + `sparkle`)
 
 ## Captions
 
@@ -293,115 +280,117 @@ Timed subtitles with optional word-level karaoke support.
   "text": "Welcome to the video",
   "wordTimings": [
     { "word": "Welcome", "start": 1.0, "end": 1.4 },
-    { "word": "to", "start": 1.4, "end": 1.5 },
-    { "word": "the", "start": 1.5, "end": 1.6 },
-    { "word": "video", "start": 1.6, "end": 2.0 }
+    { "word": "to",      "start": 1.4, "end": 1.5 },
+    { "word": "the",     "start": 1.5, "end": 1.6 },
+    { "word": "video",   "start": 1.6, "end": 2.0 }
   ]
 }
 ```
 
-Caption presets: `none`, `fadeWord`, `karaoke`, `typewriter`, `slideUp`, `popIn`, `bounceIn`, `glowIn`, `blurIn`, `skew-in`, `tiktok`.
+Caption presets: `none`, `fadeWord`, `karaoke`, `typewriter`, `slideUp`, `popIn`, `bounceIn`, `glowIn`, `blurIn`, `skew-in`, `tiktok`
 
-> Note: `startTime`/`endTime` use SRT format (`"HH:MM:SS.mmm"`), while `wordTimings` use seconds (float).
+> `startTime`/`endTime` use SRT format (`"HH:MM:SS.mmm"`); `wordTimings` use seconds (float).
 
-## Visual Effects
+## CLI Usage
 
-50+ post-processing effects applied to the entire canvas during their active time range.
+```bash
+# Basic render
+npx hypr-video-cli input.json -o output.mp4
 
-```json
-{
-  "id": "el_fx1",
-  "type": "effect",
-  "name": "Cinematic Look",
-  "timeFrame": { "start": 0, "end": 10000 },
-  "placement": {
-    "x": 0,
-    "y": 0,
-    "width": 1920,
-    "height": 1080,
-    "rotation": 0,
-    "scaleX": 1,
-    "scaleY": 1
-  },
-  "properties": {
-    "effectLayers": [
-      {
-        "effectType": "colorGrading",
-        "effectParams": { "contrast": 0.2, "saturation": -0.1 },
-        "enabled": true
-      }
-    ]
-  }
-}
+# Custom frame rate and quality
+npx hypr-video-cli input.json -o out.mp4 --fps 60 --quality high
+
+# Override output resolution
+npx hypr-video-cli input.json -o out.mp4 --width 1280 --height 720
+
+# Quiet mode — prints only output path (useful for scripting)
+npx hypr-video-cli input.json -q
 ```
 
-| Category       | Effect Types                                                                                                                             |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Blur (7)       | `gaussianBlur`, `radialBlur`, `motionBlur`, `tiltShift`, `bokeh`, `kawaseBlur`, `cameraMotionBlur`                                       |
-| Distortion (9) | `wave`, `ripple`, `fisheye`, `swirl`, `kaleidoscope`, `spherize`, `mirror`, `split`, `zoomPulse`                                         |
-| Glitch (3)     | `rgbSplit`, `glitchBlock`, `shake`                                                                                                       |
-| Light (8)      | `vignette`, `glow`, `lensFlare`, `lightLeak`, `sparkle`, `flash`, `godray`, `spotlight`                                                  |
-| Basic (4)      | `invert`, `duotone`, `colorGrading`, `sharpen`                                                                                           |
-| Stylize (14)   | `vhs`, `pixelate`, `posterize`, `halftone`, `emboss`, `thermal`, `echo`, `rain`, `snow`, `ascii`, `crossHatch`, `neonEdge`, `colorShift` |
-| Other (2)      | `fire`, `fireworks`                                                                                                                      |
+### CLI Options
 
-Common presets:
-
-- Retro/VHS: `vhs` + + `colorShift`
-- Dream: `gaussianBlur` + `glow` + `lightLeak`
-- Glitch: `rgbSplit` + `glitchBlock` + `shake`
+| Option                | Default                   | Description                                                                  |
+| --------------------- | ------------------------- | ---------------------------------------------------------------------------- |
+| `-o, --output <path>` | `./output/video-<ts>.mp4` | Output file path                                                             |
+| `--fps <n>`           | `30`                      | Frame rate (`24` / `30` / `60`)                                              |
+| `--quality <level>`   | `medium`                  | `low` (2 Mbps) / `medium` (4 Mbps) / `high` (8 Mbps) / `very_high` (15 Mbps) |
+| `--format <fmt>`      | `mp4`                     | `mp4` (H.264) / `mov` / `mp3` (audio only)                                   |
+| `--width <n>`         | from JSON                 | Override output width                                                        |
+| `--height <n>`        | from JSON                 | Override output height                                                       |
+| `-q, --quiet`         | `false`                   | Only print output path                                                       |
 
 ## Examples
 
-| Template           | File                        | Canvas    | Duration | Description                                   |
-| ------------------ | --------------------------- | --------- | -------- | --------------------------------------------- |
-| Hello World        | `hello-world.json`          | 1920×1080 | 5s       | Minimal text with fade-in                     |
-| Apple Style        | `apple-style-promo.json`    | 1920×1080 | 15s      | Minimalist brand promo (black + white + blue) |
-| Tutorial Intro     | `tutorial-intro.json`       | 1920×1080 | 20s      | Step-by-step numbered slides                  |
-| Product Launch     | `product-launch.json`       | 1920×1080 | 25s      | Feature specs + pricing + CTA                 |
-| Instagram Story    | `instagram-story-9x16.json` | 1080×1920 | 15s      | Vertical 9:16 sale promo                      |
-| Instagram Square   | `instagram-square-1x1.json` | 1080×1080 | 12s      | 1:1 quote + design tip carousel               |
-| Event Announcement | `event-announcement.json`   | 1920×1080 | 20s      | Conference with speakers list                 |
-| Flash Sale         | `sale-countdown.json`       | 1920×1080 | 15s      | E-commerce 70% off countdown                  |
+| Template | File | Canvas | Duration | Description |
+| -------- | ---- | ------ | -------- | ----------- |
+| Hello World | `hello-world.mjs` | 1920×1080 | 5s | Minimal text with fade-in |
+| Apple Style Promo | `apple-style-promo.mjs` | 1920×1080 | 15s | Minimalist brand promo |
+| SaaS Promo | `saas-promo.mjs` | 1920×1080 | 20s | Feature highlights + CTA |
+| Product Launch | `product-launch.mjs` | 1920×1080 | 25s | Feature specs + pricing |
+| Instagram Story | `instagram-story-9x16.mjs` | 1080×1920 | 15s | Vertical 9:16 sale promo |
+| Instagram Square | `instagram-square-1x1.mjs` | 1080×1080 | 12s | 1:1 quote + design tip |
+| Event Announcement | `event-announcement.mjs` | 1920×1080 | 20s | Conference with speakers |
+| Flash Sale | `sale-countdown.mjs` | 1920×1080 | 15s | E-commerce countdown |
+| Python Tutorial | `python-decorator-tutorial.mjs` | 1920×1080 | 30s | Code walkthrough |
+| SaaS Features | `saas-features-showcase.mjs` | 1920×1080 | 25s | Feature cards showcase |
+| Bar Chart Demo | `chart-bar-demo.mjs` | 1920×1080 | 10s | Animated data visualization |
 
 ```bash
 # Render any example (from cloned repo)
-npx hypr-video-cli examples/product-launch.json -o product.mp4
+node scripts/gen_canvas.mjs examples/product-launch.mjs /tmp/product-launch.json
+npx hypr-video-cli /tmp/product-launch.json -o output/product-launch.mp4
 ```
-
-## Validation
-
-The validator catches common mistakes before you spend time rendering:
-
-```bash
-npx tsx scripts/validate-canvas-state.ts input.json
-```
-
-Checks performed:
-
-- `isVisible: true` on all tracks
-- `opacity` not placed inside `placement`
-- Text elements use `fontColor` (not `fill`)
-- `maxTime` >= latest element end time
-- All element IDs are unique
-- Track `elementIds` reference existing elements
-- Animation `targetId` references existing elements
-- Transition elements exist
-- `outputFormat` fields present
 
 ## Common Gotchas
 
-| #   | Mistake                             | Symptom                               | Fix                                                                                |
-| --- | ----------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------- |
-| 1   | Missing `isVisible: true` on tracks | Video renders but is completely black | Always set `"isVisible": true`                                                     |
-| 2   | `opacity` inside `placement`        | Opacity always 1.0                    | Put `opacity` at the element top level                                             |
-| 3   | Using `fill` for text color         | Text invisible (black on black)       | Use `fontColor` for text, `fill` for shapes only                                   |
-| 4   | `maxTime` < element end times       | Elements cut off early                | Set `maxTime` >= largest `timeFrame.end`                                           |
-| 5   | Missing `name` on tracks            | Rendering errors                      | Always include `"name"` on every track                                             |
-| 6   | Wrong time units                    | Elements flash or don't appear        | `timeFrame`/`animation`/`transition` = ms; captions = SRT; `wordTimings` = seconds |
-| 7   | Non-adjacent transition elements    | Transition doesn't render             | Source and target must be adjacent on the same track                               |
-| 8   | Unavailable fonts                   | Text renders in fallback font         | Use system fonts (Arial, Georgia, etc.) or register via `fontAssets`               |
-| 9   | Duplicate element IDs               | Only one element renders              | Every `id` must be globally unique                                                 |
+| # | Mistake | Symptom | Fix |
+| - | ------- | ------- | --- |
+| 1 | Missing `isVisible: true` on tracks | Video renders black | `autoTracks()` handles this automatically |
+| 2 | `t.fonts` spread as array | Runtime error | `t.fonts` is an object — use `{ ...t.fonts }` not `[...t.fonts]` |
+| 3 | `maxTime` < element end times | Elements cut off early | Set `maxTime` >= largest element `end` |
+| 4 | Per-character anim + `\n` + centered text | Horizontal misalignment | Per-char anims safe on single-line text only |
+| 5 | Position keyframe `{x,y}` mismatch | Element jumps on frame 1 | Initial keyframe must match element `x`/`y` exactly |
+| 6 | Wrong time units | Elements flash or don't appear | `start`/`end`/animations = ms; captions = SRT; `wordTimings` = seconds |
+| 7 | Non-adjacent transition elements | Transition doesn't render | Source and target must be adjacent on the same track |
+| 8 | Config file written to `examples/` | Clutters repo | Config and JSON always go in `/tmp/` |
+
+## Common Canvas Sizes
+
+| Name | Width | Height | Use Case |
+| ---- | ----- | ------ | -------- |
+| 1080p Landscape | 1920 | 1080 | YouTube, general video |
+| 720p Landscape | 1280 | 720 | Smaller file size |
+| 9:16 Portrait | 1080 | 1920 | TikTok, Reels, Shorts |
+| 1:1 Square | 1080 | 1080 | Instagram feed |
+| 4:3 Standard | 1440 | 1080 | Presentations |
+
+## Project Structure
+
+```
+hypr-video-cli/
+├── assets/                     # Demo video and preview GIF
+├── bin/                        # Entry script shim
+├── dist/
+│   ├── render-video.mjs        # Bundled CLI renderer (DO NOT EDIT)
+│   └── frameWorker.mjs         # Frame rendering worker
+├── examples/                   # Ready-to-run .mjs config templates
+├── skill/
+│   ├── SKILL.md                # Claude Code skill definition + workflow
+│   ├── scripts/
+│   │   └── gen_canvas.mjs      # Core config-to-JSON engine (1185 lines)
+│   ├── assets/
+│   │   ├── fonts/              # 18 bundled TTF fonts
+│   │   └── templates/          # Golden templates (minimal.mjs, saas-promo.mjs)
+│   └── references/             # Feature docs Claude reads for accurate generation
+│       ├── gen-canvas.md       # Config spec: themes, role helpers, SVG helpers
+│       ├── design-rules.md     # Mandatory design rules
+│       ├── svg-helpers.md      # Params for all 65 SVG helpers
+│       ├── font-assets.md      # 18 fonts + pairings
+│       ├── common-mistakes.md  # Debugging guide
+│       ├── scene-planning.md   # Video types + scene structures
+│       └── icons.md            # Unicode symbols + emoji
+└── package.json
+```
 
 ## Development
 
@@ -409,24 +398,21 @@ Checks performed:
 git clone https://github.com/superyhee/hypr-video-cli.git
 cd hypr-video-cli
 npm install
-node dist/render-video.mjs examples/hello-world.json -o output.mp4
+
+# Write a config and generate JSON
+node skill/scripts/gen_canvas.mjs examples/hello-world.mjs /tmp/hello.json
+
+# Render
+node dist/render-video.mjs /tmp/hello.json -o output/hello.mp4
 ```
 
-## Project Structure
+## Troubleshooting
 
-```
-hypr-video-cli/
-├── assets/                 # Demo video and preview GIF
-├── bin/                    # Entry script
-├── dist/                   # Bundled CLI (render-video.mjs)
-├── examples/               # Ready-to-render JSON templates
-├── scripts/
-│   └── validate-canvas-state.ts   # JSON validator
-├── skill/
-│   ├── SKILL.md            # Claude Code skill definition
-│   └── references/         # Feature docs Claude reads for accurate JSON generation
-└── package.json
-```
+- **`FFmpeg not found`** — Install FFmpeg and ensure it's in PATH (`brew install ffmpeg` on macOS)
+- **`skia-canvas` or `sharp` install fails** — These are native binaries. Ensure Node.js >= 20 and matching platform. Try `npm rebuild`.
+- **Blank video output** — Most likely `isVisible: true` is missing on tracks. Use `autoTracks()` to avoid this.
+- **Elements cut off early** — Check that `maxTime` >= the largest element `end`.
+- **`gen_canvas.mjs` not found** — Run from the repo root: `node skill/scripts/gen_canvas.mjs` (not `scripts/`)
 
 ## License
 
