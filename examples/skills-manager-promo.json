@@ -1,0 +1,581 @@
+{
+  "canvasState": {
+    "width": 1080,
+    "height": 1920,
+    "backgroundColor": "linear-gradient(180deg, #0a0e27, #1a1f4e, #0d1234)",
+    "maxTime": 30000,
+    "elements": [
+      {
+        "id": "el_accent_line1",
+        "type": "shape",
+        "name": "Top Accent Line",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "placement": { "x": 340, "y": 520, "width": 400, "height": 4, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#00d4ff", "rx": 2, "ry": 2 }
+      },
+      {
+        "id": "el_title",
+        "type": "text",
+        "name": "Product Title",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "placement": { "x": 90, "y": 580, "width": 900, "height": 200, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "text": "Skills\nManager",
+          "fontFamily": "Arial",
+          "fontSize": 108,
+          "fontWeight": 700,
+          "fontColor": "#ffffff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_tagline",
+        "type": "text",
+        "name": "Tagline",
+        "timeFrame": { "start": 800, "end": 6000 },
+        "placement": { "x": 90, "y": 820, "width": 900, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "text": "One place for all your AI skills",
+          "fontFamily": "Arial",
+          "fontSize": 40,
+          "fontWeight": 400,
+          "fontColor": "#00d4ff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_subtitle",
+        "type": "text",
+        "name": "Subtitle",
+        "timeFrame": { "start": 1200, "end": 6000 },
+        "placement": { "x": 90, "y": 920, "width": 900, "height": 120, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "text": "Universal AI agent skills manager\nfor Claude Code, Cursor, Copilot & more",
+          "fontFamily": "Arial",
+          "fontSize": 30,
+          "fontWeight": 400,
+          "fontColor": "#8899cc",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_accent_line2",
+        "type": "shape",
+        "name": "Bottom Accent Line",
+        "timeFrame": { "start": 0, "end": 6000 },
+        "placement": { "x": 340, "y": 1080, "width": 400, "height": 4, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#00d4ff", "rx": 2, "ry": 2 }
+      },
+
+      {
+        "id": "el_feat_header",
+        "type": "text",
+        "name": "Features Header",
+        "timeFrame": { "start": 6000, "end": 14000 },
+        "placement": { "x": 90, "y": 280, "width": 900, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "text": "CORE FEATURES",
+          "fontFamily": "Arial",
+          "fontSize": 36,
+          "fontWeight": 700,
+          "fontColor": "#00d4ff",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "el_feat_divider",
+        "type": "shape",
+        "name": "Feature Divider",
+        "timeFrame": { "start": 6000, "end": 14000 },
+        "placement": { "x": 390, "y": 380, "width": 300, "height": 3, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#00d4ff" }
+      },
+
+      {
+        "id": "el_feat1_icon",
+        "type": "shape",
+        "name": "Feature 1 Icon BG",
+        "timeFrame": { "start": 6200, "end": 14000 },
+        "placement": { "x": 100, "y": 440, "width": 70, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#1a2a6e", "rx": 16, "ry": 16 }
+      },
+      {
+        "id": "el_feat1_emoji",
+        "type": "text",
+        "name": "Feature 1 Emoji",
+        "timeFrame": { "start": 6200, "end": 14000 },
+        "placement": { "x": 108, "y": 450, "width": 54, "height": 54, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "\ud83d\udcca", "fontFamily": "Arial", "fontSize": 36, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_feat1_title",
+        "type": "text",
+        "name": "Feature 1 Title",
+        "timeFrame": { "start": 6200, "end": 14000 },
+        "placement": { "x": 200, "y": 440, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Unified Dashboard", "fontFamily": "Arial", "fontSize": 34, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_feat1_desc",
+        "type": "text",
+        "name": "Feature 1 Desc",
+        "timeFrame": { "start": 6200, "end": 14000 },
+        "placement": { "x": 200, "y": 488, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "View all skills across agents in one place", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#8899cc", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_feat2_icon",
+        "type": "shape",
+        "name": "Feature 2 Icon BG",
+        "timeFrame": { "start": 7000, "end": 14000 },
+        "placement": { "x": 100, "y": 580, "width": 70, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#1a2a6e", "rx": 16, "ry": 16 }
+      },
+      {
+        "id": "el_feat2_emoji",
+        "type": "text",
+        "name": "Feature 2 Emoji",
+        "timeFrame": { "start": 7000, "end": 14000 },
+        "placement": { "x": 108, "y": 590, "width": 54, "height": 54, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "\ud83d\udd17", "fontFamily": "Arial", "fontSize": 36, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_feat2_title",
+        "type": "text",
+        "name": "Feature 2 Title",
+        "timeFrame": { "start": 7000, "end": 14000 },
+        "placement": { "x": 200, "y": 580, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "GitHub Integration", "fontFamily": "Arial", "fontSize": 34, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_feat2_desc",
+        "type": "text",
+        "name": "Feature 2 Desc",
+        "timeFrame": { "start": 7000, "end": 14000 },
+        "placement": { "x": 200, "y": 628, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Install directly from repos & registries", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#8899cc", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_feat3_icon",
+        "type": "shape",
+        "name": "Feature 3 Icon BG",
+        "timeFrame": { "start": 7800, "end": 14000 },
+        "placement": { "x": 100, "y": 720, "width": 70, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#1a2a6e", "rx": 16, "ry": 16 }
+      },
+      {
+        "id": "el_feat3_emoji",
+        "type": "text",
+        "name": "Feature 3 Emoji",
+        "timeFrame": { "start": 7800, "end": 14000 },
+        "placement": { "x": 108, "y": 730, "width": 54, "height": 54, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "\ud83d\udd00", "fontFamily": "Arial", "fontSize": 36, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_feat3_title",
+        "type": "text",
+        "name": "Feature 3 Title",
+        "timeFrame": { "start": 7800, "end": 14000 },
+        "placement": { "x": 200, "y": 720, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Cross-Agent Transfer", "fontFamily": "Arial", "fontSize": 34, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_feat3_desc",
+        "type": "text",
+        "name": "Feature 3 Desc",
+        "timeFrame": { "start": 7800, "end": 14000 },
+        "placement": { "x": 200, "y": 768, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Move skills between agents seamlessly", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#8899cc", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_feat4_icon",
+        "type": "shape",
+        "name": "Feature 4 Icon BG",
+        "timeFrame": { "start": 8600, "end": 14000 },
+        "placement": { "x": 100, "y": 860, "width": 70, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#1a2a6e", "rx": 16, "ry": 16 }
+      },
+      {
+        "id": "el_feat4_emoji",
+        "type": "text",
+        "name": "Feature 4 Emoji",
+        "timeFrame": { "start": 8600, "end": 14000 },
+        "placement": { "x": 108, "y": 870, "width": 54, "height": 54, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "\ud83d\udd18", "fontFamily": "Arial", "fontSize": 36, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_feat4_title",
+        "type": "text",
+        "name": "Feature 4 Title",
+        "timeFrame": { "start": 8600, "end": 14000 },
+        "placement": { "x": 200, "y": 860, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Toggle Control", "fontFamily": "Arial", "fontSize": 34, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_feat4_desc",
+        "type": "text",
+        "name": "Feature 4 Desc",
+        "timeFrame": { "start": 8600, "end": 14000 },
+        "placement": { "x": 200, "y": 908, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Enable/disable skills without deleting", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#8899cc", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_feat5_icon",
+        "type": "shape",
+        "name": "Feature 5 Icon BG",
+        "timeFrame": { "start": 9400, "end": 14000 },
+        "placement": { "x": 100, "y": 1000, "width": 70, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#1a2a6e", "rx": 16, "ry": 16 }
+      },
+      {
+        "id": "el_feat5_emoji",
+        "type": "text",
+        "name": "Feature 5 Emoji",
+        "timeFrame": { "start": 9400, "end": 14000 },
+        "placement": { "x": 108, "y": 1010, "width": 54, "height": 54, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "\ud83e\udd16", "fontFamily": "Arial", "fontSize": 36, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_feat5_title",
+        "type": "text",
+        "name": "Feature 5 Title",
+        "timeFrame": { "start": 9400, "end": 14000 },
+        "placement": { "x": 200, "y": 1000, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "11 Agents Supported", "fontFamily": "Arial", "fontSize": 34, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "left" }
+      },
+      {
+        "id": "el_feat5_desc",
+        "type": "text",
+        "name": "Feature 5 Desc",
+        "timeFrame": { "start": 9400, "end": 14000 },
+        "placement": { "x": 200, "y": 1048, "width": 780, "height": 40, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Claude Code, Cursor, Gemini CLI & more", "fontFamily": "Arial", "fontSize": 24, "fontWeight": 400, "fontColor": "#8899cc", "textAlign": "left" }
+      },
+
+      {
+        "id": "el_agents_header",
+        "type": "text",
+        "name": "Agents Header",
+        "timeFrame": { "start": 14000, "end": 22000 },
+        "placement": { "x": 90, "y": 300, "width": 900, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "WORKS WITH", "fontFamily": "Arial", "fontSize": 36, "fontWeight": 700, "fontColor": "#00d4ff", "textAlign": "center" }
+      },
+      {
+        "id": "el_agents_divider",
+        "type": "shape",
+        "name": "Agents Divider",
+        "timeFrame": { "start": 14000, "end": 22000 },
+        "placement": { "x": 390, "y": 400, "width": 300, "height": 3, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#00d4ff" }
+      },
+
+      {
+        "id": "el_agent_row1_bg",
+        "type": "shape",
+        "name": "Agent Row 1 BG",
+        "timeFrame": { "start": 14400, "end": 22000 },
+        "placement": { "x": 100, "y": 460, "width": 880, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#131840", "rx": 12, "ry": 12 }
+      },
+      {
+        "id": "el_agent1",
+        "type": "text",
+        "name": "Agent 1",
+        "timeFrame": { "start": 14400, "end": 22000 },
+        "placement": { "x": 120, "y": 472, "width": 840, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Claude Code", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_agent_row2_bg",
+        "type": "shape",
+        "name": "Agent Row 2 BG",
+        "timeFrame": { "start": 14800, "end": 22000 },
+        "placement": { "x": 100, "y": 550, "width": 880, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#131840", "rx": 12, "ry": 12 }
+      },
+      {
+        "id": "el_agent2",
+        "type": "text",
+        "name": "Agent 2",
+        "timeFrame": { "start": 14800, "end": 22000 },
+        "placement": { "x": 120, "y": 562, "width": 840, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Cursor", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_agent_row3_bg",
+        "type": "shape",
+        "name": "Agent Row 3 BG",
+        "timeFrame": { "start": 15200, "end": 22000 },
+        "placement": { "x": 100, "y": 640, "width": 880, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#131840", "rx": 12, "ry": 12 }
+      },
+      {
+        "id": "el_agent3",
+        "type": "text",
+        "name": "Agent 3",
+        "timeFrame": { "start": 15200, "end": 22000 },
+        "placement": { "x": 120, "y": 652, "width": 840, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "GitHub Copilot", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_agent_row4_bg",
+        "type": "shape",
+        "name": "Agent Row 4 BG",
+        "timeFrame": { "start": 15600, "end": 22000 },
+        "placement": { "x": 100, "y": 730, "width": 880, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#131840", "rx": 12, "ry": 12 }
+      },
+      {
+        "id": "el_agent4",
+        "type": "text",
+        "name": "Agent 4",
+        "timeFrame": { "start": 15600, "end": 22000 },
+        "placement": { "x": 120, "y": 742, "width": 840, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Gemini CLI", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_agent_row5_bg",
+        "type": "shape",
+        "name": "Agent Row 5 BG",
+        "timeFrame": { "start": 16000, "end": 22000 },
+        "placement": { "x": 100, "y": 820, "width": 880, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#131840", "rx": 12, "ry": 12 }
+      },
+      {
+        "id": "el_agent5",
+        "type": "text",
+        "name": "Agent 5",
+        "timeFrame": { "start": 16000, "end": 22000 },
+        "placement": { "x": 120, "y": 832, "width": 840, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Windsurf", "fontFamily": "Arial", "fontSize": 32, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_agent_more",
+        "type": "text",
+        "name": "More Agents",
+        "timeFrame": { "start": 16400, "end": 22000 },
+        "placement": { "x": 120, "y": 930, "width": 840, "height": 50, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "+ 6 more agents", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 400, "fontColor": "#6677aa", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_cta_badge",
+        "type": "shape",
+        "name": "CTA Badge",
+        "timeFrame": { "start": 22000, "end": 28000 },
+        "placement": { "x": 240, "y": 520, "width": 600, "height": 100, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#00d4ff", "rx": 50, "ry": 50 }
+      },
+      {
+        "id": "el_cta_free",
+        "type": "text",
+        "name": "Free Badge Text",
+        "timeFrame": { "start": 22000, "end": 28000 },
+        "placement": { "x": 240, "y": 538, "width": 600, "height": 70, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "100% FREE", "fontFamily": "Arial", "fontSize": 48, "fontWeight": 700, "fontColor": "#0a0e27", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_opensource",
+        "type": "text",
+        "name": "Open Source",
+        "timeFrame": { "start": 22500, "end": 28000 },
+        "placement": { "x": 90, "y": 680, "width": 900, "height": 80, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "Open Source  |  MIT License", "fontFamily": "Arial", "fontSize": 36, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_no_telemetry",
+        "type": "text",
+        "name": "No Telemetry",
+        "timeFrame": { "start": 22800, "end": 28000 },
+        "placement": { "x": 90, "y": 770, "width": 900, "height": 60, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "No accounts  |  No telemetry", "fontFamily": "Arial", "fontSize": 30, "fontWeight": 400, "fontColor": "#8899cc", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_github_box",
+        "type": "shape",
+        "name": "GitHub Box",
+        "timeFrame": { "start": 23500, "end": 28000 },
+        "placement": { "x": 140, "y": 900, "width": 800, "height": 90, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#1a2a6e", "rx": 16, "ry": 16 }
+      },
+      {
+        "id": "el_github_text",
+        "type": "text",
+        "name": "GitHub URL",
+        "timeFrame": { "start": 23500, "end": 28000 },
+        "placement": { "x": 140, "y": 918, "width": 800, "height": 60, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "github.com/zunalabs/skills-manager", "fontFamily": "Courier New", "fontSize": 26, "fontWeight": 700, "fontColor": "#00d4ff", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_end_line",
+        "type": "shape",
+        "name": "End Accent",
+        "timeFrame": { "start": 28000, "end": 30000 },
+        "placement": { "x": 390, "y": 780, "width": 300, "height": 3, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "shapeType": "rect", "fill": "#00d4ff" }
+      },
+      {
+        "id": "el_logo_text",
+        "type": "text",
+        "name": "Zunalabs Logo",
+        "timeFrame": { "start": 28000, "end": 30000 },
+        "placement": { "x": 90, "y": 820, "width": 900, "height": 120, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "ZUNALABS", "fontFamily": "Arial", "fontSize": 64, "fontWeight": 700, "fontColor": "#ffffff", "textAlign": "center" }
+      },
+      {
+        "id": "el_logo_sub",
+        "type": "text",
+        "name": "Zunalabs Tagline",
+        "timeFrame": { "start": 28200, "end": 30000 },
+        "placement": { "x": 90, "y": 940, "width": 900, "height": 60, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": { "text": "sm.idoevergreen.me", "fontFamily": "Arial", "fontSize": 28, "fontWeight": 400, "fontColor": "#6677aa", "textAlign": "center" }
+      },
+
+      {
+        "id": "el_fx_vignette",
+        "type": "effect",
+        "name": "Vignette",
+        "timeFrame": { "start": 0, "end": 30000 },
+        "placement": { "x": 0, "y": 0, "width": 1080, "height": 1920, "rotation": 0, "scaleX": 1, "scaleY": 1 },
+        "properties": {
+          "effectLayers": [
+            { "effectType": "vignette", "effectParams": { "intensity": 0.4, "radius": 0.8, "softness": 0.6 }, "enabled": true }
+          ]
+        }
+      }
+    ],
+
+    "tracks": [
+      { "id": "track_fx", "name": "Effects", "type": "effect", "elementIds": ["el_fx_vignette"], "isVisible": true },
+      { "id": "track_text_s1", "name": "Scene1 Text", "type": "text", "elementIds": ["el_title", "el_tagline", "el_subtitle"], "isVisible": true },
+      { "id": "track_text_s2h", "name": "Scene2 Header", "type": "text", "elementIds": ["el_feat_header"], "isVisible": true },
+      { "id": "track_text_s2_emoji", "name": "Scene2 Emoji", "type": "text", "elementIds": ["el_feat1_emoji", "el_feat2_emoji", "el_feat3_emoji", "el_feat4_emoji", "el_feat5_emoji"], "isVisible": true },
+      { "id": "track_text_s2_titles", "name": "Scene2 Titles", "type": "text", "elementIds": ["el_feat1_title", "el_feat2_title", "el_feat3_title", "el_feat4_title", "el_feat5_title"], "isVisible": true },
+      { "id": "track_text_s2_descs", "name": "Scene2 Descs", "type": "text", "elementIds": ["el_feat1_desc", "el_feat2_desc", "el_feat3_desc", "el_feat4_desc", "el_feat5_desc"], "isVisible": true },
+      { "id": "track_text_s3h", "name": "Scene3 Header", "type": "text", "elementIds": ["el_agents_header", "el_agent_more"], "isVisible": true },
+      { "id": "track_text_s3_agents", "name": "Scene3 Agents", "type": "text", "elementIds": ["el_agent1", "el_agent2", "el_agent3", "el_agent4", "el_agent5"], "isVisible": true },
+      { "id": "track_text_s4", "name": "Scene4 CTA", "type": "text", "elementIds": ["el_cta_free", "el_opensource", "el_no_telemetry", "el_github_text"], "isVisible": true },
+      { "id": "track_text_s5", "name": "Scene5 Logo", "type": "text", "elementIds": ["el_logo_text", "el_logo_sub"], "isVisible": true },
+      { "id": "track_shape_s1", "name": "Scene1 Accents", "type": "shape", "elementIds": ["el_accent_line1", "el_accent_line2"], "isVisible": true },
+      { "id": "track_shape_s2", "name": "Scene2 Shapes", "type": "shape", "elementIds": ["el_feat_divider", "el_feat1_icon", "el_feat2_icon", "el_feat3_icon", "el_feat4_icon", "el_feat5_icon"], "isVisible": true },
+      { "id": "track_shape_s3", "name": "Scene3 Shapes", "type": "shape", "elementIds": ["el_agents_divider", "el_agent_row1_bg", "el_agent_row2_bg", "el_agent_row3_bg", "el_agent_row4_bg", "el_agent_row5_bg"], "isVisible": true },
+      { "id": "track_shape_s4", "name": "Scene4 Shapes", "type": "shape", "elementIds": ["el_cta_badge", "el_github_box"], "isVisible": true },
+      { "id": "track_shape_s5", "name": "Scene5 Shapes", "type": "shape", "elementIds": ["el_end_line"], "isVisible": true }
+    ],
+
+    "animations": [
+      { "id": "anim_01", "targetId": "el_accent_line1", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_02", "targetId": "el_title", "type": "zoomIn", "duration": 800, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_03", "targetId": "el_tagline", "type": "fadeIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_04", "targetId": "el_subtitle", "type": "fadeIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_05", "targetId": "el_accent_line2", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_06", "targetId": "el_title", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_07", "targetId": "el_tagline", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_08", "targetId": "el_subtitle", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_09", "targetId": "el_accent_line1", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_10", "targetId": "el_accent_line2", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+
+      { "id": "anim_11", "targetId": "el_feat_header", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_12", "targetId": "el_feat_divider", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_13", "targetId": "el_feat1_icon", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_14", "targetId": "el_feat1_emoji", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_15", "targetId": "el_feat1_title", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_16", "targetId": "el_feat1_desc", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_17", "targetId": "el_feat2_icon", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_18", "targetId": "el_feat2_emoji", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_19", "targetId": "el_feat2_title", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_20", "targetId": "el_feat2_desc", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_21", "targetId": "el_feat3_icon", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_22", "targetId": "el_feat3_emoji", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_23", "targetId": "el_feat3_title", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_24", "targetId": "el_feat3_desc", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_25", "targetId": "el_feat4_icon", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_26", "targetId": "el_feat4_emoji", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_27", "targetId": "el_feat4_title", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_28", "targetId": "el_feat4_desc", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_29", "targetId": "el_feat5_icon", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_30", "targetId": "el_feat5_emoji", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_31", "targetId": "el_feat5_title", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_32", "targetId": "el_feat5_desc", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+
+      { "id": "anim_33", "targetId": "el_feat_header", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_34", "targetId": "el_feat_divider", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_35", "targetId": "el_feat1_icon", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_36", "targetId": "el_feat1_title", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_37", "targetId": "el_feat1_desc", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_38", "targetId": "el_feat1_emoji", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+
+      { "id": "anim_39", "targetId": "el_agents_header", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_40", "targetId": "el_agents_divider", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_41", "targetId": "el_agent_row1_bg", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_42", "targetId": "el_agent1", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_43", "targetId": "el_agent_row2_bg", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_44", "targetId": "el_agent2", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_45", "targetId": "el_agent_row3_bg", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_46", "targetId": "el_agent3", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_47", "targetId": "el_agent_row4_bg", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_48", "targetId": "el_agent4", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_49", "targetId": "el_agent_row5_bg", "type": "slideIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_50", "targetId": "el_agent5", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_51", "targetId": "el_agent_more", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+
+      { "id": "anim_52", "targetId": "el_agents_header", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_53", "targetId": "el_agents_divider", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+
+      { "id": "anim_54", "targetId": "el_cta_badge", "type": "zoomIn", "duration": 600, "group": "in", "easing": "easeOutBounce", "properties": {} },
+      { "id": "anim_55", "targetId": "el_cta_free", "type": "zoomIn", "duration": 600, "group": "in", "easing": "easeOutBounce", "properties": {} },
+      { "id": "anim_56", "targetId": "el_opensource", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_57", "targetId": "el_no_telemetry", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_58", "targetId": "el_github_box", "type": "slideIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_59", "targetId": "el_github_text", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_60", "targetId": "el_cta_badge", "type": "pulse", "duration": 2000, "group": "loop", "easing": "easeInOut", "properties": {} },
+
+      { "id": "anim_61", "targetId": "el_cta_badge", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_62", "targetId": "el_cta_free", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_63", "targetId": "el_opensource", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_64", "targetId": "el_no_telemetry", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_65", "targetId": "el_github_box", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_66", "targetId": "el_github_text", "type": "fadeOut", "duration": 400, "group": "out", "easing": "easeIn", "properties": {} },
+
+      { "id": "anim_67", "targetId": "el_end_line", "type": "fadeIn", "duration": 500, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_68", "targetId": "el_logo_text", "type": "zoomIn", "duration": 700, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_69", "targetId": "el_logo_sub", "type": "fadeIn", "duration": 600, "group": "in", "easing": "easeOut", "properties": {} },
+      { "id": "anim_70", "targetId": "el_logo_text", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} },
+      { "id": "anim_71", "targetId": "el_logo_sub", "type": "fadeOut", "duration": 500, "group": "out", "easing": "easeIn", "properties": {} }
+    ],
+
+    "captions": [],
+    "globalCaptionStyle": {
+      "fontSize": 36,
+      "fontFamily": "Arial",
+      "fontColor": "#ffffff",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 1.2,
+      "charSpacing": 0,
+      "styles": [],
+      "strokeWidth": 0,
+      "strokeColor": "#000000",
+      "shadowColor": "",
+      "shadowBlur": 0,
+      "shadowOffsetX": 0,
+      "shadowOffsetY": 0,
+      "backgroundColor": ""
+    },
+    "keyframeTracks": [],
+    "transitions": []
+  },
+  "outputFormat": { "fps": 30, "quality": "high", "format": "mp4" }
+}

@@ -1,7 +1,4 @@
-#!/usr/bin/env tsx
-// Bundled Fabric Video Editor CLI — render videos from canvasState JSON
-// Native deps required: skia-canvas, sharp. System: FFmpeg.
-import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+// Worker thread for parallel frame rendering — do not run directly.
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -4592,12 +4589,12 @@ var init_WorkerFrameRenderer = __esm({
        * @param onFrameBuffer  按顺序调用：(frameIndex, ArrayBuffer) => Promise<void>
        * @param onProgress    每帧完成时调用
        */
-      async renderAllFrames(session, totalFrames, onFrameBuffer, onProgress) {
+      async renderAllFrames(session2, totalFrames, onFrameBuffer, onProgress) {
         const resolvers = new Array(totalFrames);
         const framePromises = Array.from(
           { length: totalFrames },
-          (_, i) => new Promise((resolve3, reject) => {
-            resolvers[i] = { resolve: resolve3, reject };
+          (_, i) => new Promise((resolve2, reject) => {
+            resolvers[i] = { resolve: resolve2, reject };
           })
         );
         const ext = import.meta.url.endsWith(".ts") ? "ts" : import.meta.url.endsWith(".mjs") ? "mjs" : "js";
@@ -4616,14 +4613,14 @@ var init_WorkerFrameRenderer = __esm({
         for (let i = 0; i < actualWorkers; i++) {
           workers.push(
             new Worker(workerPath, {
-              workerData: session,
+              workerData: session2,
               execArgv: workerExecArgv
             })
           );
         }
         await Promise.all(
           workers.map(
-            (w, i) => new Promise((resolve3, reject) => {
+            (w, i) => new Promise((resolve2, reject) => {
               const timeout = setTimeout(
                 () => reject(new Error(`Worker ${i} init timeout`)),
                 3e4
@@ -4631,7 +4628,7 @@ var init_WorkerFrameRenderer = __esm({
               w.once("message", (msg) => {
                 if (msg.type === "ready") {
                   clearTimeout(timeout);
-                  resolve3();
+                  resolve2();
                 }
               });
               w.once("error", (e) => {
@@ -4694,10 +4691,9 @@ var init_WorkerFrameRenderer = __esm({
   }
 });
 
-// ../../server/src/cli/render-video.ts
-import * as fs6 from "fs";
-import * as path6 from "path";
-import { execSync as execSync2 } from "child_process";
+// ../../server/src/renderer/frameWorker.ts
+import { isMainThread, parentPort, workerData } from "worker_threads";
+import { Canvas as Canvas2, loadImage as loadImage4 } from "skia-canvas";
 
 // ../../server/src/renderer/ServerRenderExporter.ts
 import { Canvas, loadImage as loadImage3 } from "skia-canvas";
@@ -5280,7 +5276,7 @@ var DataConverter = class _DataConverter {
    * A static frame is visually identical to the previous frame and can be
    * skipped (the canvas content is reused for encoding).
    */
-  static buildStaticFrameFlags(activeElementsByFrame, totalFrames, fps, transitions, captions, captionAnimation) {
+  static buildStaticFrameFlags(activeElementsByFrame2, totalFrames, fps, transitions, captions, captionAnimation) {
     const isStatic = new Array(totalFrames).fill(false);
     const captionTimesMs = captions?.map((cap) => ({
       startMs: srtTimeToMs(cap.startTime),
@@ -5299,8 +5295,8 @@ var DataConverter = class _DataConverter {
     }
     const frameDurationMs = 1e3 / fps;
     for (let f = 1; f < totalFrames; f++) {
-      const curr = activeElementsByFrame[f];
-      const prev = activeElementsByFrame[f - 1];
+      const curr = activeElementsByFrame2[f];
+      const prev = activeElementsByFrame2[f - 1];
       const timeSec = f / fps;
       const timeMs = timeSec * 1e3;
       const prevTimeMs = timeMs - frameDurationMs;
@@ -5870,23 +5866,23 @@ function parsePath(d) {
   for (const seg of segments) totalLength += seg.length;
   return { segments, totalLength };
 }
-function samplePathAtProgress(path7, progress) {
-  if (path7.segments.length === 0) return { x: 0, y: 0, angle: 0 };
-  if (progress <= 0) return path7.segments[0].pointAt(0);
+function samplePathAtProgress(path6, progress) {
+  if (path6.segments.length === 0) return { x: 0, y: 0, angle: 0 };
+  if (progress <= 0) return path6.segments[0].pointAt(0);
   if (progress >= 1) {
-    const last2 = path7.segments[path7.segments.length - 1];
+    const last2 = path6.segments[path6.segments.length - 1];
     return last2.pointAt(1);
   }
-  const targetLen = progress * path7.totalLength;
+  const targetLen = progress * path6.totalLength;
   let accumulated = 0;
-  for (const seg of path7.segments) {
+  for (const seg of path6.segments) {
     if (accumulated + seg.length >= targetLen) {
       const localT = seg.length > 0 ? (targetLen - accumulated) / seg.length : 0;
       return seg.pointAt(localT);
     }
     accumulated += seg.length;
   }
-  const last = path7.segments[path7.segments.length - 1];
+  const last = path6.segments[path6.segments.length - 1];
   return last.pointAt(1);
 }
 
@@ -6524,7 +6520,7 @@ var ServerVideoFrameExtractor = class {
     this.frameCache.set(key, img);
   }
   ffmpegExtractFrame(videoPath, timeSeconds) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const args = [
         "-ss",
         String(timeSeconds),
@@ -6547,7 +6543,7 @@ var ServerVideoFrameExtractor = class {
       });
       proc.on("close", (code) => {
         if (code === 0 && chunks.length > 0) {
-          resolve3(Buffer.concat(chunks));
+          resolve2(Buffer.concat(chunks));
         } else {
           reject(new Error(`FFmpeg frame extraction failed (code ${code}) for ${videoPath} at ${timeSeconds}s`));
         }
@@ -6612,7 +6608,7 @@ var ServerVideoFrameExtractor = class {
   async extractFramesToDir(videoPath, startTime, endTime, fps, outputDir) {
     const seekStart = Math.max(0, startTime);
     const seekEnd = endTime + 1 / fps + 0.05;
-    await new Promise((resolve3, reject) => {
+    await new Promise((resolve2, reject) => {
       const args = [
         "-ss",
         String(seekStart),
@@ -6631,7 +6627,7 @@ var ServerVideoFrameExtractor = class {
       proc.stderr.on("data", () => {
       });
       proc.on("close", (code) => {
-        if (code === 0) resolve3();
+        if (code === 0) resolve2();
         else reject(new Error(`Batch extract FFmpeg exited with code ${code}`));
       });
       proc.on("error", reject);
@@ -6726,7 +6722,7 @@ var ServerAudioExtractor = class {
    * 从单个媒体文件提取音频为 PCM（Float32LE, stereo, 48kHz）
    */
   async extractAudio(src, startSec, durationSec, sampleRate = 48e3) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const args = [
         "-ss",
         String(startSec),
@@ -6751,7 +6747,7 @@ var ServerAudioExtractor = class {
       });
       proc.on("close", (code) => {
         if (code === 0) {
-          resolve3(Buffer.concat(chunks));
+          resolve2(Buffer.concat(chunks));
         } else {
           reject(new Error(`FFmpeg audio extraction failed (code ${code})`));
         }
@@ -6763,7 +6759,7 @@ var ServerAudioExtractor = class {
    * 混合多个音轨到单个 WAV 文件
    * 使用 FFmpeg amix 滤镜
    */
-  async mixAudioTracks(tracks, totalDuration, outputPath, sampleRate = 48e3) {
+  async mixAudioTracks(tracks, totalDuration2, outputPath, sampleRate = 48e3) {
     if (tracks.length === 0) return null;
     const args = [];
     const filterParts = [];
@@ -6808,7 +6804,7 @@ var ServerAudioExtractor = class {
       "-map",
       "[out]",
       "-t",
-      String(totalDuration),
+      String(totalDuration2),
       "-ar",
       String(sampleRate),
       "-ac",
@@ -6816,15 +6812,15 @@ var ServerAudioExtractor = class {
       "-y",
       outputPath
     );
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const proc = spawn2("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
       proc.stderr.on("data", () => {
       });
       proc.on("close", (code) => {
         if (code === 0) {
-          resolve3(outputPath);
+          resolve2(outputPath);
         } else {
-          resolve3(null);
+          resolve2(null);
         }
       });
       proc.on("error", reject);
@@ -6881,14 +6877,14 @@ var MediaResolver = class {
     const ext = this.getExtFromUrl(url);
     const localPath = path2.join(this.downloadDir, `${hash}${ext}`);
     if (fs3.existsSync(localPath)) return localPath;
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const protocol = url.startsWith("https") ? https : http;
       const file = fs3.createWriteStream(localPath);
       protocol.get(url, { agent: false }, (response) => {
         if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           file.close();
           fs3.unlinkSync(localPath);
-          this.downloadToLocal(response.headers.location).then(resolve3).catch(reject);
+          this.downloadToLocal(response.headers.location).then(resolve2).catch(reject);
           return;
         }
         if (response.statusCode !== 200) {
@@ -6900,7 +6896,7 @@ var MediaResolver = class {
         response.pipe(file);
         file.on("finish", () => {
           file.close();
-          resolve3(localPath);
+          resolve2(localPath);
         });
       }).on("error", (err) => {
         file.close();
@@ -7690,20 +7686,20 @@ function interpolateSegments(segments, rawProgress, animationProperties, globalE
   }
   return 0;
 }
-function applyAnimationSpec(props, spec, clamped, animationProperties, ctx) {
+function applyAnimationSpec(props, spec, clamped, animationProperties, ctx2) {
   const defaultEasing = getOrCacheEasing(spec);
   for (const prop of spec.properties) {
     let value;
     if (prop.segments) {
       value = interpolateSegments(prop.segments, clamped, animationProperties, defaultEasing);
     } else {
-      const eased = ctx.ease(clamped, defaultEasing);
+      const eased = ctx2.ease(clamped, defaultEasing);
       const from = prop.from !== void 0 ? resolveValue(prop.from, animationProperties) : 0;
       const to = prop.to !== void 0 ? resolveValue(prop.to, animationProperties) : 0;
       value = lerp2(from, to, eased);
     }
     if (prop.multiply) {
-      value *= ctx[prop.multiply];
+      value *= ctx2[prop.multiply];
     }
     if (prop.mode === "add") {
       props[prop.target] = (props[prop.target] ?? 0) + value;
@@ -7717,72 +7713,72 @@ function applyAnimationSpec(props, spec, clamped, animationProperties, ctx) {
 }
 
 // ../../shared/animations/canvas2dEffects.ts
-function applyIrisClip(ctx, width, height, progress) {
+function applyIrisClip(ctx2, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const maxRadius = Math.sqrt(width * width + height * height) / 2;
   const currentRadius = maxRadius * p;
-  ctx.beginPath();
-  ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
-  ctx.clip();
+  ctx2.beginPath();
+  ctx2.arc(0, 0, currentRadius, 0, Math.PI * 2);
+  ctx2.clip();
 }
-function applyCurtainClip(ctx, width, height, progress) {
+function applyCurtainClip(ctx2, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const clipWidth = width * p / 2;
-  ctx.beginPath();
-  ctx.rect(-width / 2, -height / 2, clipWidth, height);
-  ctx.rect(width / 2 - clipWidth, -height / 2, clipWidth, height);
-  ctx.clip();
+  ctx2.beginPath();
+  ctx2.rect(-width / 2, -height / 2, clipWidth, height);
+  ctx2.rect(width / 2 - clipWidth, -height / 2, clipWidth, height);
+  ctx2.clip();
 }
-function applyWipeClip(ctx, width, height, progress, direction) {
+function applyWipeClip(ctx2, width, height, progress, direction) {
   const dir = direction === "top" ? "up" : direction === "bottom" ? "down" : direction;
   const p = Math.max(0, Math.min(1, progress));
   const w = width;
   const h = height;
-  ctx.beginPath();
+  ctx2.beginPath();
   switch (dir) {
     case "left":
-      ctx.rect(-w / 2, -h / 2, w * p, h);
+      ctx2.rect(-w / 2, -h / 2, w * p, h);
       break;
     case "right":
-      ctx.rect(w / 2 - w * p, -h / 2, w * p, h);
+      ctx2.rect(w / 2 - w * p, -h / 2, w * p, h);
       break;
     case "up":
-      ctx.rect(-w / 2, -h / 2, w, h * p);
+      ctx2.rect(-w / 2, -h / 2, w, h * p);
       break;
     case "down":
-      ctx.rect(-w / 2, h / 2 - h * p, w, h * p);
+      ctx2.rect(-w / 2, h / 2 - h * p, w, h * p);
       break;
     case "top-left":
-      ctx.moveTo(-w / 2, -h / 2);
-      ctx.lineTo(-w / 2 + w * p, -h / 2);
-      ctx.lineTo(-w / 2, -h / 2 + h * p);
-      ctx.closePath();
+      ctx2.moveTo(-w / 2, -h / 2);
+      ctx2.lineTo(-w / 2 + w * p, -h / 2);
+      ctx2.lineTo(-w / 2, -h / 2 + h * p);
+      ctx2.closePath();
       break;
     case "top-right":
-      ctx.moveTo(w / 2, -h / 2);
-      ctx.lineTo(w / 2 - w * p, -h / 2);
-      ctx.lineTo(w / 2, -h / 2 + h * p);
-      ctx.closePath();
+      ctx2.moveTo(w / 2, -h / 2);
+      ctx2.lineTo(w / 2 - w * p, -h / 2);
+      ctx2.lineTo(w / 2, -h / 2 + h * p);
+      ctx2.closePath();
       break;
     case "bottom-left":
-      ctx.moveTo(-w / 2, h / 2);
-      ctx.lineTo(-w / 2 + w * p, h / 2);
-      ctx.lineTo(-w / 2, h / 2 - h * p);
-      ctx.closePath();
+      ctx2.moveTo(-w / 2, h / 2);
+      ctx2.lineTo(-w / 2 + w * p, h / 2);
+      ctx2.lineTo(-w / 2, h / 2 - h * p);
+      ctx2.closePath();
       break;
     case "bottom-right":
-      ctx.moveTo(w / 2, h / 2);
-      ctx.lineTo(w / 2 - w * p, h / 2);
-      ctx.lineTo(w / 2, h / 2 - h * p);
-      ctx.closePath();
+      ctx2.moveTo(w / 2, h / 2);
+      ctx2.lineTo(w / 2 - w * p, h / 2);
+      ctx2.lineTo(w / 2, h / 2 - h * p);
+      ctx2.closePath();
       break;
     default:
-      ctx.rect(-w / 2, -h / 2, w, h);
+      ctx2.rect(-w / 2, -h / 2, w, h);
       break;
   }
-  ctx.clip();
+  ctx2.clip();
 }
-function apply3DRotation(ctx, rotateX, rotateY, width, height) {
+function apply3DRotation(ctx2, rotateX, rotateY, width, height) {
   const angleX = rotateX * Math.PI / 180;
   const angleY = rotateY * Math.PI / 180;
   const cosX = Math.cos(angleX);
@@ -7792,11 +7788,11 @@ function apply3DRotation(ctx, rotateX, rotateY, width, height) {
   const perspectiveFactor = PERSPECTIVE.FLIP_FACTOR;
   if (rotateY !== 0) {
     const skewY = -sinY * perspectiveFactor * height;
-    ctx.transform(cosY, 0, skewY, 1, 0, 0);
+    ctx2.transform(cosY, 0, skewY, 1, 0, 0);
   }
   if (rotateX !== 0) {
     const skewX = -sinX * perspectiveFactor * width;
-    ctx.transform(1, skewX, 0, cosX, 0, 0);
+    ctx2.transform(1, skewX, 0, cosX, 0, 0);
   }
 }
 function calculatePixelateDownsample(width, height, pixelSize) {
@@ -7808,24 +7804,24 @@ function calculatePixelateDownsample(width, height, pixelSize) {
 function calculateDissolvePixelSize(progress) {
   return Math.floor(progress * 20) + 1;
 }
-function renderPixelated(ctx, sourceCanvas, width, height) {
-  const prevSmoothing = ctx.imageSmoothingEnabled;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(sourceCanvas, -width / 2, -height / 2, width, height);
-  ctx.imageSmoothingEnabled = prevSmoothing;
+function renderPixelated(ctx2, sourceCanvas, width, height) {
+  const prevSmoothing = ctx2.imageSmoothingEnabled;
+  ctx2.imageSmoothingEnabled = false;
+  ctx2.drawImage(sourceCanvas, -width / 2, -height / 2, width, height);
+  ctx2.imageSmoothingEnabled = prevSmoothing;
 }
-function renderGlitchRGBSplit(ctx, sourceCanvas, width, height, rgbSplit) {
-  const alpha = ctx.globalAlpha;
-  ctx.save();
-  ctx.globalAlpha = alpha * 0.4;
-  ctx.drawImage(sourceCanvas, -width / 2 - rgbSplit, -height / 2, width, height);
-  ctx.restore();
-  ctx.save();
-  ctx.globalAlpha = alpha * 0.4;
-  ctx.drawImage(sourceCanvas, -width / 2 + rgbSplit, -height / 2, width, height);
-  ctx.restore();
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(sourceCanvas, -width / 2, -height / 2, width, height);
+function renderGlitchRGBSplit(ctx2, sourceCanvas, width, height, rgbSplit) {
+  const alpha = ctx2.globalAlpha;
+  ctx2.save();
+  ctx2.globalAlpha = alpha * 0.4;
+  ctx2.drawImage(sourceCanvas, -width / 2 - rgbSplit, -height / 2, width, height);
+  ctx2.restore();
+  ctx2.save();
+  ctx2.globalAlpha = alpha * 0.4;
+  ctx2.drawImage(sourceCanvas, -width / 2 + rgbSplit, -height / 2, width, height);
+  ctx2.restore();
+  ctx2.globalAlpha = alpha;
+  ctx2.drawImage(sourceCanvas, -width / 2, -height / 2, width, height);
 }
 
 // ../../shared/animations/easingFunctions.ts
@@ -8144,14 +8140,14 @@ var easeOutBack = easingFunctions.easeOutBack;
 var easeInBack = easingFunctions.easeInBack;
 var easeOutElastic = easingFunctions.easeOutElastic;
 var linear = EASING.linear;
-var handleSlideIn = (props, animation, clamped, _raw, ctx) => {
+var handleSlideIn = (props, animation, clamped, _raw, ctx2) => {
   const useClip = !!animation.properties?.useClipPath;
   const dir = animation.properties?.direction || "left";
   const targetX = props.x;
   const targetY = props.y;
-  const startX = dir === "left" ? -props.width : dir === "right" ? ctx.canvasWidth : targetX;
-  const startY = dir === "top" ? -props.height : dir === "bottom" ? ctx.canvasHeight : targetY;
-  const eased = ctx.ease(clamped, easeOutQuad);
+  const startX = dir === "left" ? -props.width : dir === "right" ? ctx2.canvasWidth : targetX;
+  const startY = dir === "top" ? -props.height : dir === "bottom" ? ctx2.canvasHeight : targetY;
+  const eased = ctx2.ease(clamped, easeOutQuad);
   if (!useClip) {
     props.x = startX + (targetX - startX) * eased;
     props.y = startY + (targetY - startY) * eased;
@@ -8160,22 +8156,22 @@ var handleSlideIn = (props, animation, clamped, _raw, ctx) => {
     props[ANIM_PROPS.WIPE_PROGRESS] = eased;
     props._wipeGroup = "in";
   }
-  props.opacity = ctx.baseOpacity * eased;
+  props.opacity = ctx2.baseOpacity * eased;
   const scaleProgress = 0.95 + 0.05 * eased;
-  props.scaleX = ctx.baseScaleX * scaleProgress;
-  props.scaleY = ctx.baseScaleY * scaleProgress;
+  props.scaleX = ctx2.baseScaleX * scaleProgress;
+  props.scaleY = ctx2.baseScaleY * scaleProgress;
 };
-var handleSlideOut = (props, animation, clamped, _raw, ctx) => {
+var handleSlideOut = (props, animation, clamped, _raw, ctx2) => {
   const useClip = !!animation.properties?.useClipPath;
   const dir = animation.properties?.direction || "left";
-  const eased = ctx.ease(clamped, easeInOutQuad);
+  const eased = ctx2.ease(clamped, easeInOutQuad);
   if (useClip) {
     props[ANIM_PROPS.WIPE_DIR] = dir;
     props[ANIM_PROPS.WIPE_PROGRESS] = 1 - eased;
     props._wipeGroup = "out";
-    props.opacity = ctx.baseOpacity * (1 - eased);
+    props.opacity = ctx2.baseOpacity * (1 - eased);
   } else {
-    const slideDistance = Math.max(ctx.canvasWidth, ctx.canvasHeight) + Math.max(props.width, props.height);
+    const slideDistance = Math.max(ctx2.canvasWidth, ctx2.canvasHeight) + Math.max(props.width, props.height);
     const targetX = props.x;
     const targetY = props.y;
     let endOffsetX = 0, endOffsetY = 0;
@@ -8195,85 +8191,85 @@ var handleSlideOut = (props, animation, clamped, _raw, ctx) => {
     }
     props.x = targetX + endOffsetX * eased;
     props.y = targetY + endOffsetY * eased;
-    props.opacity = ctx.baseOpacity * (1 - eased);
+    props.opacity = ctx2.baseOpacity * (1 - eased);
   }
 };
-var handleRotateIn = (props, animation, clamped, _raw, ctx) => {
+var handleRotateIn = (props, animation, clamped, _raw, ctx2) => {
   const rotationDegrees = animation.properties?.rotationDegrees ?? 180;
   const direction = animation.properties?.direction ?? "clockwise";
   const baseRotation = props.rotation ?? 0;
   const startAngle = direction === "clockwise" ? baseRotation + rotationDegrees : baseRotation - rotationDegrees;
-  const eased = ctx.ease(clamped, easeOutBack);
+  const eased = ctx2.ease(clamped, easeOutBack);
   props.rotation = startAngle + (baseRotation - startAngle) * eased;
-  props.opacity = ctx.baseOpacity * eased;
+  props.opacity = ctx2.baseOpacity * eased;
   const scaleProgress = 0.3 + 0.7 * eased;
-  props.scaleX = ctx.baseScaleX * scaleProgress;
-  props.scaleY = ctx.baseScaleY * scaleProgress;
+  props.scaleX = ctx2.baseScaleX * scaleProgress;
+  props.scaleY = ctx2.baseScaleY * scaleProgress;
 };
-var handleRotateOut = (props, animation, clamped, _raw, ctx) => {
+var handleRotateOut = (props, animation, clamped, _raw, ctx2) => {
   const rotationDegrees = animation.properties?.rotationDegrees ?? 180;
   const direction = animation.properties?.direction ?? "clockwise";
   const baseRotation = props.rotation ?? 0;
   const endAngle = direction === "clockwise" ? baseRotation + rotationDegrees : baseRotation - rotationDegrees;
-  const eased = ctx.ease(clamped, easeInBack);
+  const eased = ctx2.ease(clamped, easeInBack);
   props.rotation = baseRotation + (endAngle - baseRotation) * eased;
-  props.opacity = ctx.baseOpacity * (1 - eased);
+  props.opacity = ctx2.baseOpacity * (1 - eased);
   const scaleProgress = 1 - 0.7 * eased;
-  props.scaleX = ctx.baseScaleX * scaleProgress;
-  props.scaleY = ctx.baseScaleY * scaleProgress;
+  props.scaleX = ctx2.baseScaleX * scaleProgress;
+  props.scaleY = ctx2.baseScaleY * scaleProgress;
 };
-var handleFlipIn = (props, animation, clamped, _raw, ctx) => {
+var handleFlipIn = (props, animation, clamped, _raw, ctx2) => {
   const direction = animation.properties?.direction || "horizontal";
-  const easedFlip = ctx.ease(clamped, easeOutBack);
+  const easedFlip = ctx2.ease(clamped, easeOutBack);
   if (direction === "horizontal") {
     props[ANIM_PROPS.ROTATE_Y] = 90 * (1 - easedFlip);
   } else {
     props[ANIM_PROPS.ROTATE_X] = 90 * (1 - easedFlip);
   }
-  props.opacity = ctx.baseOpacity * easedFlip;
+  props.opacity = ctx2.baseOpacity * easedFlip;
 };
-var handleFlipOut = (props, animation, clamped, _raw, ctx) => {
+var handleFlipOut = (props, animation, clamped, _raw, ctx2) => {
   const direction = animation.properties?.direction || "horizontal";
-  const easedFlip = ctx.ease(clamped, easeInBack);
+  const easedFlip = ctx2.ease(clamped, easeInBack);
   if (direction === "horizontal") {
     props[ANIM_PROPS.ROTATE_Y] = 90 * easedFlip;
   } else {
     props[ANIM_PROPS.ROTATE_X] = 90 * easedFlip;
   }
-  props.opacity = ctx.baseOpacity * (1 - easedFlip);
+  props.opacity = ctx2.baseOpacity * (1 - easedFlip);
 };
-var handleBounceIn = (props, _anim, clamped, _raw, ctx) => {
-  const eased = ctx.ease(clamped, easeOutElastic);
+var handleBounceIn = (props, _anim, clamped, _raw, ctx2) => {
+  const eased = ctx2.ease(clamped, easeOutElastic);
   const scaleMultiplier = interpolate(clamped, [0, 0.25, 0.5, 0.75, 1], [0, 1.2, 0.9, 1.1, 1]);
-  props.scaleX = ctx.baseScaleX * scaleMultiplier;
-  props.scaleY = ctx.baseScaleY * scaleMultiplier;
-  props.opacity = ctx.baseOpacity * eased;
+  props.scaleX = ctx2.baseScaleX * scaleMultiplier;
+  props.scaleY = ctx2.baseScaleY * scaleMultiplier;
+  props.opacity = ctx2.baseOpacity * eased;
 };
-var handleBounceOut = (props, _anim, clamped, _raw, ctx) => {
-  const eased = ctx.ease(clamped, easeInQuad);
+var handleBounceOut = (props, _anim, clamped, _raw, ctx2) => {
+  const eased = ctx2.ease(clamped, easeInQuad);
   const scaleMultiplier = Math.max(0, interpolate(clamped, [0, 0.25, 0.5, 0.75, 1], [1, 1.1, 0.9, 0.3, 0]));
-  props.scaleX = ctx.baseScaleX * scaleMultiplier;
-  props.scaleY = ctx.baseScaleY * scaleMultiplier;
-  props.opacity = ctx.baseOpacity * (1 - eased);
+  props.scaleX = ctx2.baseScaleX * scaleMultiplier;
+  props.scaleY = ctx2.baseScaleY * scaleMultiplier;
+  props.opacity = ctx2.baseOpacity * (1 - eased);
 };
-var handleMorphIn = (props, _anim, clamped, _raw, ctx) => {
-  const easedMorph = ctx.ease(clamped, easeInOutQuad);
+var handleMorphIn = (props, _anim, clamped, _raw, ctx2) => {
+  const easedMorph = ctx2.ease(clamped, easeInOutQuad);
   let scaleX, scaleY;
   if (clamped < 0.5) {
     const p = clamped * 2;
-    scaleX = ctx.baseScaleX * p;
-    scaleY = ctx.baseScaleY * p;
+    scaleX = ctx2.baseScaleX * p;
+    scaleY = ctx2.baseScaleY * p;
   } else {
     const p = (clamped - 0.5) * 2;
-    scaleX = ctx.baseScaleX * (0.8 + 0.2 * p);
-    scaleY = ctx.baseScaleY * (1.2 - 0.2 * p);
+    scaleX = ctx2.baseScaleX * (0.8 + 0.2 * p);
+    scaleY = ctx2.baseScaleY * (1.2 - 0.2 * p);
   }
   props.scaleX = scaleX;
   props.scaleY = scaleY;
-  props.opacity = ctx.baseOpacity * easedMorph;
+  props.opacity = ctx2.baseOpacity * easedMorph;
 };
-var handleGlitch = (props, animation, clamped, _raw, ctx) => {
-  const easedGlitch = ctx.ease(clamped, easeInOutQuad);
+var handleGlitch = (props, animation, clamped, _raw, ctx2) => {
+  const easedGlitch = ctx2.ease(clamped, easeInOutQuad);
   const glitchIntensity = animation.properties?.intensity ?? 10;
   const glitchPhase = Math.floor(clamped * 8) % 2;
   if (glitchPhase === 0) {
@@ -8288,35 +8284,35 @@ var handleGlitch = (props, animation, clamped, _raw, ctx) => {
     props[ANIM_PROPS.RGB_SPLIT] = 0;
   }
   if (animation.group === "in") {
-    props.opacity = ctx.baseOpacity * easedGlitch;
+    props.opacity = ctx2.baseOpacity * easedGlitch;
   } else if (animation.group === "out") {
-    props.opacity = ctx.baseOpacity * (1 - easedGlitch);
+    props.opacity = ctx2.baseOpacity * (1 - easedGlitch);
   }
 };
-var handleMorphOut = (props, _anim, clamped, _raw, ctx) => {
-  const easedMorph = ctx.ease(clamped, easeInOutQuad);
+var handleMorphOut = (props, _anim, clamped, _raw, ctx2) => {
+  const easedMorph = ctx2.ease(clamped, easeInOutQuad);
   let scaleX, scaleY;
   if (clamped < 0.5) {
     const p = clamped * 2;
-    scaleX = ctx.baseScaleX * (1 - 0.2 * p);
-    scaleY = ctx.baseScaleY * (1 + 0.2 * p);
+    scaleX = ctx2.baseScaleX * (1 - 0.2 * p);
+    scaleY = ctx2.baseScaleY * (1 + 0.2 * p);
   } else {
     const p = (clamped - 0.5) * 2;
-    scaleX = ctx.baseScaleX * (0.8 - 0.8 * p);
-    scaleY = ctx.baseScaleY * (1.2 - 1.2 * p);
+    scaleX = ctx2.baseScaleX * (0.8 - 0.8 * p);
+    scaleY = ctx2.baseScaleY * (1.2 - 1.2 * p);
   }
   props.scaleX = scaleX;
   props.scaleY = scaleY;
-  props.opacity = ctx.baseOpacity * (1 - easedMorph);
+  props.opacity = ctx2.baseOpacity * (1 - easedMorph);
 };
-var handleDissolveOut = (props, _anim, clamped, _raw, ctx) => {
-  const eased = ctx.ease(clamped, linear);
+var handleDissolveOut = (props, _anim, clamped, _raw, ctx2) => {
+  const eased = ctx2.ease(clamped, linear);
   props[ANIM_PROPS.DISSOLVE_PROGRESS] = eased;
   const pixelSize = calculateDissolvePixelSize(eased);
   if (pixelSize > 1) {
     props[ANIM_PROPS.PIXEL_SIZE] = pixelSize;
   }
-  props.opacity = ctx.baseOpacity * (1 - eased);
+  props.opacity = ctx2.baseOpacity * (1 - eased);
 };
 var handlePulse = (props, animation, _clamped, progressRaw, { baseScaleX, baseScaleY }) => {
   const pulseScale = animation.properties?.scale ?? 1.1;
@@ -8571,7 +8567,7 @@ function applyAnimation(props, animation, localTime, canvasWidth, canvasHeight) 
     return props;
   }
   const customEasingFn = animation.easing ? resolveEasing(animation.easing) : void 0;
-  const ctx = {
+  const ctx2 = {
     canvasWidth,
     canvasHeight,
     baseOpacity: props.opacity ?? 1,
@@ -8581,12 +8577,12 @@ function applyAnimation(props, animation, localTime, canvasWidth, canvasHeight) 
   };
   const spec = ANIMATION_REGISTRY[animation.type];
   if (spec) {
-    applyAnimationSpec(props, spec, clamped, animation.properties, ctx);
+    applyAnimationSpec(props, spec, clamped, animation.properties, ctx2);
     return props;
   }
   const handler = ANIMATION_HANDLERS[animation.type];
   if (handler) {
-    handler(props, animation, clamped, progressRaw, ctx);
+    handler(props, animation, clamped, progressRaw, ctx2);
   }
   return props;
 }
@@ -8907,27 +8903,27 @@ var DERIVED_TRANSITION_DEFAULT_EASING = (() => {
 })();
 
 // ../../shared/transitions/transitionEffects.ts
-function blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendCrossfade(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.save();
-  ctx.globalAlpha = 1 - p;
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.restore();
-  ctx.save();
-  ctx.globalAlpha = p;
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = 1 - p;
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.restore();
+  ctx2.save();
+  ctx2.globalAlpha = p;
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendWipe(ctx, sourceCanvas, targetCanvas, width, height, progress, options) {
+function blendWipe(ctx2, sourceCanvas, targetCanvas, width, height, progress, options) {
   const p = Math.max(0, Math.min(1, progress));
   const direction = options?.direction || "left";
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
-  applyWipeClip(ctx, width, height, p, direction);
-  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, width / 2, height / 2);
+  applyWipeClip(ctx2, width, height, p, direction);
+  ctx2.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
 var SLIDE_OFFSETS = {
   left: (w) => [-w, 0],
@@ -8935,108 +8931,108 @@ var SLIDE_OFFSETS = {
   up: (_w, h) => [0, -h],
   down: (_w, h) => [0, h]
 };
-function blendSlide(ctx, sourceCanvas, targetCanvas, width, height, progress, options) {
+function blendSlide(ctx2, sourceCanvas, targetCanvas, width, height, progress, options) {
   const p = Math.max(0, Math.min(1, progress));
   const direction = options?.direction || "left";
   const getOffset = SLIDE_OFFSETS[direction] || SLIDE_OFFSETS.left;
   const [fullDx, fullDy] = getOffset(width, height);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, width, height);
-  ctx.clip();
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.rect(0, 0, width, height);
+  ctx2.clip();
   const srcDx = fullDx * p;
   const srcDy = fullDy * p;
-  ctx.drawImage(sourceCanvas, srcDx, srcDy, width, height);
+  ctx2.drawImage(sourceCanvas, srcDx, srcDy, width, height);
   const tgtDx = -fullDx * (1 - p);
   const tgtDy = -fullDy * (1 - p);
-  ctx.drawImage(targetCanvas, tgtDx, tgtDy, width, height);
-  ctx.restore();
+  ctx2.drawImage(targetCanvas, tgtDx, tgtDy, width, height);
+  ctx2.restore();
 }
-function blendIris(ctx, sourceCanvas, targetCanvas, width, height, progress, options) {
+function blendIris(ctx2, sourceCanvas, targetCanvas, width, height, progress, options) {
   const p = Math.max(0, Math.min(1, progress));
   const mode = options?.mode || "open";
-  ctx.drawImage(mode === "open" ? sourceCanvas : targetCanvas, 0, 0, width, height);
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
-  applyIrisClip(ctx, width, height, mode === "open" ? p : 1 - p);
-  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
-  ctx.drawImage(mode === "open" ? targetCanvas : sourceCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.drawImage(mode === "open" ? sourceCanvas : targetCanvas, 0, 0, width, height);
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, width / 2, height / 2);
+  applyIrisClip(ctx2, width, height, mode === "open" ? p : 1 - p);
+  ctx2.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx2.drawImage(mode === "open" ? targetCanvas : sourceCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendCurtain(ctx, sourceCanvas, targetCanvas, width, height, progress, options) {
+function blendCurtain(ctx2, sourceCanvas, targetCanvas, width, height, progress, options) {
   const p = Math.max(0, Math.min(1, progress));
   const mode = options?.mode || "open";
-  ctx.drawImage(mode === "open" ? sourceCanvas : targetCanvas, 0, 0, width, height);
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
-  applyCurtainClip(ctx, width, height, mode === "open" ? p : 1 - p);
-  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
-  ctx.drawImage(mode === "open" ? targetCanvas : sourceCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.drawImage(mode === "open" ? sourceCanvas : targetCanvas, 0, 0, width, height);
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, width / 2, height / 2);
+  applyCurtainClip(ctx2, width, height, mode === "open" ? p : 1 - p);
+  ctx2.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx2.drawImage(mode === "open" ? targetCanvas : sourceCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendDissolve(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendDissolve(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const pixelSize = calculateDissolvePixelSize(p);
-  ctx.save();
-  ctx.globalAlpha = 1 - p;
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.restore();
-  ctx.save();
-  ctx.globalAlpha = p;
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = 1 - p;
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.restore();
+  ctx2.save();
+  ctx2.globalAlpha = p;
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendPixelate(ctx, sourceCanvas, targetCanvas, width, height, progress) {
-  blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress);
+function blendPixelate(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
+  blendCrossfade(ctx2, sourceCanvas, targetCanvas, width, height, progress);
 }
-function blendBlur(ctx, sourceCanvas, targetCanvas, width, height, progress) {
-  blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress);
+function blendBlur(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
+  blendCrossfade(ctx2, sourceCanvas, targetCanvas, width, height, progress);
 }
-function blendFadeToColor(ctx, sourceCanvas, targetCanvas, width, height, progress, options) {
+function blendFadeToColor(ctx2, sourceCanvas, targetCanvas, width, height, progress, options) {
   const p = Math.max(0, Math.min(1, progress));
   const color = options?.color || "#000000";
-  if (ctx.fillRect && ctx.fillStyle !== void 0) {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, width, height);
+  if (ctx2.fillRect && ctx2.fillStyle !== void 0) {
+    ctx2.fillStyle = color;
+    ctx2.fillRect(0, 0, width, height);
   }
   if (p < 0.5) {
     const subP = p * 2;
-    ctx.save();
-    ctx.globalAlpha = 1 - subP;
-    ctx.drawImage(sourceCanvas, 0, 0, width, height);
-    ctx.restore();
+    ctx2.save();
+    ctx2.globalAlpha = 1 - subP;
+    ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+    ctx2.restore();
   } else {
     const subP = (p - 0.5) * 2;
-    ctx.save();
-    ctx.globalAlpha = subP;
-    ctx.drawImage(targetCanvas, 0, 0, width, height);
-    ctx.restore();
+    ctx2.save();
+    ctx2.globalAlpha = subP;
+    ctx2.drawImage(targetCanvas, 0, 0, width, height);
+    ctx2.restore();
   }
 }
-function blendRadialWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendRadialWipe(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, width / 2, height / 2);
   const maxRadius = Math.sqrt(width * width + height * height) / 2;
   const startAngle = -Math.PI / 2;
   const endAngle = startAngle + Math.PI * 2 * p;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.arc(0, 0, maxRadius, startAngle, endAngle);
-  ctx.closePath();
-  ctx.clip();
-  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.beginPath();
+  ctx2.moveTo(0, 0);
+  ctx2.arc(0, 0, maxRadius, startAngle, endAngle);
+  ctx2.closePath();
+  ctx2.clip();
+  ctx2.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendGlitch(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendGlitch(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const intensity = 1 - Math.abs(p * 2 - 1);
   const rgbOffset = Math.round(intensity * 12);
   const mainCanvas = p < 0.5 ? sourceCanvas : targetCanvas;
   const altCanvas = p < 0.5 ? targetCanvas : sourceCanvas;
-  ctx.drawImage(mainCanvas, 0, 0, width, height);
+  ctx2.drawImage(mainCanvas, 0, 0, width, height);
   const sliceCount = Math.max(3, Math.round(intensity * 10));
   const sliceHeight = Math.max(1, Math.floor(height / sliceCount));
   for (let i = 0; i < sliceCount; i++) {
@@ -9046,61 +9042,61 @@ function blendGlitch(ctx, sourceCanvas, targetCanvas, width, height, progress) {
       Math.sin(i * 7.3 + p * 23.7) * intensity * width * 0.06
     );
     if (Math.abs(displacement) < 1) continue;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, y, width, h);
-    ctx.clip();
-    ctx.globalAlpha = intensity * 0.6;
-    ctx.drawImage(altCanvas, displacement, 0, width, height);
-    ctx.restore();
+    ctx2.save();
+    ctx2.beginPath();
+    ctx2.rect(0, y, width, h);
+    ctx2.clip();
+    ctx2.globalAlpha = intensity * 0.6;
+    ctx2.drawImage(altCanvas, displacement, 0, width, height);
+    ctx2.restore();
   }
   if (rgbOffset > 1) {
-    ctx.save();
-    ctx.globalAlpha = intensity * 0.25;
-    ctx.drawImage(altCanvas, -rgbOffset, 0, width, height);
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = intensity * 0.25;
-    ctx.drawImage(altCanvas, rgbOffset, 0, width, height);
-    ctx.restore();
+    ctx2.save();
+    ctx2.globalAlpha = intensity * 0.25;
+    ctx2.drawImage(altCanvas, -rgbOffset, 0, width, height);
+    ctx2.restore();
+    ctx2.save();
+    ctx2.globalAlpha = intensity * 0.25;
+    ctx2.drawImage(altCanvas, rgbOffset, 0, width, height);
+    ctx2.restore();
   }
 }
-function blendZoom(ctx, sourceCanvas, targetCanvas, width, height, progress, options) {
+function blendZoom(ctx2, sourceCanvas, targetCanvas, width, height, progress, options) {
   const p = Math.max(0, Math.min(1, progress));
   const mode = options?.mode || "in";
   if (mode === "in") {
     const sourceScale = 1 + p * 0.3;
-    ctx.save();
-    ctx.globalAlpha = 1 - p;
+    ctx2.save();
+    ctx2.globalAlpha = 1 - p;
     const sx = width * (1 - sourceScale) / 2;
     const sy = height * (1 - sourceScale) / 2;
-    ctx.drawImage(sourceCanvas, sx, sy, width * sourceScale, height * sourceScale);
-    ctx.restore();
+    ctx2.drawImage(sourceCanvas, sx, sy, width * sourceScale, height * sourceScale);
+    ctx2.restore();
     const targetScale = 0.7 + p * 0.3;
-    ctx.save();
-    ctx.globalAlpha = p;
+    ctx2.save();
+    ctx2.globalAlpha = p;
     const tx = width * (1 - targetScale) / 2;
     const ty = height * (1 - targetScale) / 2;
-    ctx.drawImage(targetCanvas, tx, ty, width * targetScale, height * targetScale);
-    ctx.restore();
+    ctx2.drawImage(targetCanvas, tx, ty, width * targetScale, height * targetScale);
+    ctx2.restore();
   } else {
     const sourceScale = 1 - p * 0.3;
-    ctx.save();
-    ctx.globalAlpha = 1 - p;
+    ctx2.save();
+    ctx2.globalAlpha = 1 - p;
     const sx = width * (1 - sourceScale) / 2;
     const sy = height * (1 - sourceScale) / 2;
-    ctx.drawImage(sourceCanvas, sx, sy, width * sourceScale, height * sourceScale);
-    ctx.restore();
+    ctx2.drawImage(sourceCanvas, sx, sy, width * sourceScale, height * sourceScale);
+    ctx2.restore();
     const targetScale = 1.3 - p * 0.3;
-    ctx.save();
-    ctx.globalAlpha = p;
+    ctx2.save();
+    ctx2.globalAlpha = p;
     const tx = width * (1 - targetScale) / 2;
     const ty = height * (1 - targetScale) / 2;
-    ctx.drawImage(targetCanvas, tx, ty, width * targetScale, height * targetScale);
-    ctx.restore();
+    ctx2.drawImage(targetCanvas, tx, ty, width * targetScale, height * targetScale);
+    ctx2.restore();
   }
 }
-function blendSpin(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendSpin(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const cx = width / 2;
   const cy = height / 2;
@@ -9108,130 +9104,130 @@ function blendSpin(ctx, sourceCanvas, targetCanvas, width, height, progress) {
   const srcScale = 1 - p * 0.5;
   const srcCos = Math.cos(srcAngle) * srcScale;
   const srcSin = Math.sin(srcAngle) * srcScale;
-  ctx.save();
-  ctx.globalAlpha = 1 - p;
-  ctx.transform(1, 0, 0, 1, cx, cy);
-  ctx.transform(srcCos, srcSin, -srcSin, srcCos, 0, 0);
-  ctx.transform(1, 0, 0, 1, -cx, -cy);
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = 1 - p;
+  ctx2.transform(1, 0, 0, 1, cx, cy);
+  ctx2.transform(srcCos, srcSin, -srcSin, srcCos, 0, 0);
+  ctx2.transform(1, 0, 0, 1, -cx, -cy);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.restore();
   const tgtAngle = -Math.PI * (1 - p);
   const tgtScale = 0.5 + p * 0.5;
   const tgtCos = Math.cos(tgtAngle) * tgtScale;
   const tgtSin = Math.sin(tgtAngle) * tgtScale;
-  ctx.save();
-  ctx.globalAlpha = p;
-  ctx.transform(1, 0, 0, 1, cx, cy);
-  ctx.transform(tgtCos, tgtSin, -tgtSin, tgtCos, 0, 0);
-  ctx.transform(1, 0, 0, 1, -cx, -cy);
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = p;
+  ctx2.transform(1, 0, 0, 1, cx, cy);
+  ctx2.transform(tgtCos, tgtSin, -tgtSin, tgtCos, 0, 0);
+  ctx2.transform(1, 0, 0, 1, -cx, -cy);
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendFlash(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendFlash(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const intensity = 1 - Math.abs(p * 2 - 1);
-  ctx.save();
-  ctx.globalAlpha = 1 - p;
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.restore();
-  ctx.save();
-  ctx.globalAlpha = p;
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
-  if (ctx.globalCompositeOperation !== void 0 && ctx.fillRect && ctx.fillStyle !== void 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = intensity * 0.85;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = 1 - p;
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.restore();
+  ctx2.save();
+  ctx2.globalAlpha = p;
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
+  if (ctx2.globalCompositeOperation !== void 0 && ctx2.fillRect && ctx2.fillStyle !== void 0) {
+    ctx2.save();
+    ctx2.globalCompositeOperation = "lighter";
+    ctx2.globalAlpha = intensity * 0.85;
+    ctx2.fillStyle = "#FFFFFF";
+    ctx2.fillRect(0, 0, width, height);
+    ctx2.restore();
   }
 }
-function blendCrossZoom(ctx, sourceCanvas, targetCanvas, width, height, progress) {
-  blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress);
+function blendCrossZoom(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
+  blendCrossfade(ctx2, sourceCanvas, targetCanvas, width, height, progress);
 }
-function blendWhipPan(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendWhipPan(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, width, height);
-  ctx.clip();
-  ctx.drawImage(sourceCanvas, -width * p, 0, width, height);
-  ctx.drawImage(targetCanvas, width * (1 - p), 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.rect(0, 0, width, height);
+  ctx2.clip();
+  ctx2.drawImage(sourceCanvas, -width * p, 0, width, height);
+  ctx2.drawImage(targetCanvas, width * (1 - p), 0, width, height);
+  ctx2.restore();
 }
-function drawHeartPath(ctx, s) {
-  if (ctx.bezierCurveTo) {
-    ctx.moveTo(0, s * 0.6);
-    ctx.bezierCurveTo(-s * 0.1, s * 0.3, -s * 0.85, s * 0.1, -s * 0.85, -s * 0.2);
-    ctx.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.35, -s * 0.8, 0, -s * 0.45);
-    ctx.bezierCurveTo(s * 0.35, -s * 0.8, s * 0.85, -s * 0.6, s * 0.85, -s * 0.2);
-    ctx.bezierCurveTo(s * 0.85, s * 0.1, s * 0.1, s * 0.3, 0, s * 0.6);
+function drawHeartPath(ctx2, s) {
+  if (ctx2.bezierCurveTo) {
+    ctx2.moveTo(0, s * 0.6);
+    ctx2.bezierCurveTo(-s * 0.1, s * 0.3, -s * 0.85, s * 0.1, -s * 0.85, -s * 0.2);
+    ctx2.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.35, -s * 0.8, 0, -s * 0.45);
+    ctx2.bezierCurveTo(s * 0.35, -s * 0.8, s * 0.85, -s * 0.6, s * 0.85, -s * 0.2);
+    ctx2.bezierCurveTo(s * 0.85, s * 0.1, s * 0.1, s * 0.3, 0, s * 0.6);
   } else {
     const N = 40;
     for (let i = 0; i <= N; i++) {
       const t = i / N * Math.PI * 2;
       const px = s * 0.053 * 16 * Math.pow(Math.sin(t), 3);
       const py = -s * 0.053 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+      if (i === 0) ctx2.moveTo(px, py);
+      else ctx2.lineTo(px, py);
     }
   }
 }
-function blendHeartWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendHeartWipe(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
   if (p <= 0) return;
   const diagonal = Math.sqrt(width * width + height * height);
   const maxS = diagonal / 0.9;
   const s = maxS * p;
   if (s < 0.5) return;
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
-  ctx.beginPath();
-  drawHeartPath(ctx, s);
-  ctx.closePath();
-  ctx.clip();
-  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, width / 2, height / 2);
+  ctx2.beginPath();
+  drawHeartPath(ctx2, s);
+  ctx2.closePath();
+  ctx2.clip();
+  ctx2.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendSplit(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendSplit(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const halfH = height / 2;
   const offset = halfH * p;
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, width, halfH);
-  ctx.clip();
-  ctx.drawImage(sourceCanvas, 0, -offset, width, height);
-  ctx.restore();
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, halfH, width, halfH);
-  ctx.clip();
-  ctx.drawImage(sourceCanvas, 0, offset, width, height);
-  ctx.restore();
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.rect(0, 0, width, halfH);
+  ctx2.clip();
+  ctx2.drawImage(sourceCanvas, 0, -offset, width, height);
+  ctx2.restore();
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.rect(0, halfH, width, halfH);
+  ctx2.clip();
+  ctx2.drawImage(sourceCanvas, 0, offset, width, height);
+  ctx2.restore();
 }
-function blendBlinds(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendBlinds(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const sliceCount = 8;
   const sliceH = height / sliceCount;
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
   for (let i = 0; i < sliceCount; i++) {
     const y = i * sliceH;
     const revealH = sliceH * p;
     if (revealH < 0.5) continue;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, y, width, revealH);
-    ctx.clip();
-    ctx.drawImage(targetCanvas, 0, 0, width, height);
-    ctx.restore();
+    ctx2.save();
+    ctx2.beginPath();
+    ctx2.rect(0, y, width, revealH);
+    ctx2.clip();
+    ctx2.drawImage(targetCanvas, 0, 0, width, height);
+    ctx2.restore();
   }
 }
-function blendBounce(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendBounce(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   let t = p;
   if (t < 1 / 2.75) {
@@ -9244,53 +9240,53 @@ function blendBounce(ctx, sourceCanvas, targetCanvas, width, height, progress) {
     t = 7.5625 * (t -= 2.625 / 2.75) * t + 0.984375;
   }
   const offsetX = width * (1 - t);
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, width, height);
-  ctx.clip();
-  ctx.drawImage(targetCanvas, offsetX, 0, width, height);
-  ctx.restore();
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.rect(0, 0, width, height);
+  ctx2.clip();
+  ctx2.drawImage(targetCanvas, offsetX, 0, width, height);
+  ctx2.restore();
 }
-function blendDiagonalWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendDiagonalWipe(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
   if (p <= 0) return;
   const diagonal = width + height;
   const linePos = -height + diagonal * p;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(linePos, 0);
-  ctx.lineTo(linePos + height, height);
-  ctx.lineTo(width, height);
-  ctx.lineTo(width, 0);
-  ctx.closePath();
-  ctx.clip();
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.beginPath();
+  ctx2.moveTo(linePos, 0);
+  ctx2.lineTo(linePos + height, height);
+  ctx2.lineTo(width, height);
+  ctx2.lineTo(width, 0);
+  ctx2.closePath();
+  ctx2.clip();
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendDiamondWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendDiamondWipe(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
   if (p <= 0) return;
   const cx = width / 2;
   const cy = height / 2;
   const maxR = Math.sqrt(cx * cx + cy * cy);
   const r = maxR * p;
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, cx, cy);
-  ctx.beginPath();
-  ctx.moveTo(0, -r);
-  ctx.lineTo(r, 0);
-  ctx.lineTo(0, r);
-  ctx.lineTo(-r, 0);
-  ctx.closePath();
-  ctx.clip();
-  ctx.transform(1, 0, 0, 1, -cx, -cy);
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, cx, cy);
+  ctx2.beginPath();
+  ctx2.moveTo(0, -r);
+  ctx2.lineTo(r, 0);
+  ctx2.lineTo(0, r);
+  ctx2.lineTo(-r, 0);
+  ctx2.closePath();
+  ctx2.clip();
+  ctx2.transform(1, 0, 0, 1, -cx, -cy);
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function drawStarPath(ctx, outerR) {
+function drawStarPath(ctx2, outerR) {
   const innerR = outerR * 0.382;
   const points = 5;
   for (let i = 0; i < points * 2; i++) {
@@ -9298,48 +9294,48 @@ function drawStarPath(ctx, outerR) {
     const r = i % 2 === 0 ? outerR : innerR;
     const x = Math.cos(angle2) * r;
     const y = Math.sin(angle2) * r;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    if (i === 0) ctx2.moveTo(x, y);
+    else ctx2.lineTo(x, y);
   }
 }
-function blendStarWipe(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendStarWipe(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  ctx2.drawImage(sourceCanvas, 0, 0, width, height);
   if (p <= 0) return;
   const diagonal = Math.sqrt(width * width + height * height);
   const maxR = diagonal / 2 / 0.382;
   const r = maxR * p;
-  ctx.save();
-  ctx.transform(1, 0, 0, 1, width / 2, height / 2);
-  ctx.beginPath();
-  drawStarPath(ctx, r);
-  ctx.closePath();
-  ctx.clip();
-  ctx.transform(1, 0, 0, 1, -width / 2, -height / 2);
-  ctx.drawImage(targetCanvas, 0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.transform(1, 0, 0, 1, width / 2, height / 2);
+  ctx2.beginPath();
+  drawStarPath(ctx2, r);
+  ctx2.closePath();
+  ctx2.clip();
+  ctx2.transform(1, 0, 0, 1, -width / 2, -height / 2);
+  ctx2.drawImage(targetCanvas, 0, 0, width, height);
+  ctx2.restore();
 }
-function blendSwap(ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function blendSwap(ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const p = Math.max(0, Math.min(1, progress));
   const tgtScale = 0.3 + p * 0.7;
   const tgtX = width * (1 - tgtScale) * (1 - p);
   const tgtY = height * (1 - tgtScale) * (1 - p);
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, p * 2);
-  ctx.drawImage(targetCanvas, tgtX, tgtY, width * tgtScale, height * tgtScale);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = Math.min(1, p * 2);
+  ctx2.drawImage(targetCanvas, tgtX, tgtY, width * tgtScale, height * tgtScale);
+  ctx2.restore();
   const srcScale = 1 - p * 0.7;
-  ctx.save();
-  ctx.globalAlpha = Math.max(0, 1 - p * 2);
-  ctx.drawImage(sourceCanvas, 0, 0, width * srcScale, height * srcScale);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = Math.max(0, 1 - p * 2);
+  ctx2.drawImage(sourceCanvas, 0, 0, width * srcScale, height * srcScale);
+  ctx2.restore();
 }
-function applyTransitionBlend(type, ctx, sourceCanvas, targetCanvas, width, height, progress) {
+function applyTransitionBlend(type, ctx2, sourceCanvas, targetCanvas, width, height, progress) {
   const desc = TRANSITION_REGISTRY[type];
   if (desc) {
-    desc.blendFn(ctx, sourceCanvas, targetCanvas, width, height, progress, desc.blendOptions);
+    desc.blendFn(ctx2, sourceCanvas, targetCanvas, width, height, progress, desc.blendOptions);
   } else {
-    blendCrossfade(ctx, sourceCanvas, targetCanvas, width, height, progress);
+    blendCrossfade(ctx2, sourceCanvas, targetCanvas, width, height, progress);
   }
 }
 
@@ -9357,25 +9353,25 @@ function applyTransitionEasing(progress, type, easing) {
 }
 
 // ../../shared/animations/effectApplicator.ts
-function applyClipEffects(ctx, props, width, height) {
+function applyClipEffects(ctx2, props, width, height) {
   const wipeDir = props[ANIM_PROPS.WIPE_DIR];
   const wipeProgress = props[ANIM_PROPS.WIPE_PROGRESS];
   if (wipeDir && wipeProgress !== void 0) {
-    applyWipeClip(ctx, width, height, wipeProgress, wipeDir);
+    applyWipeClip(ctx2, width, height, wipeProgress, wipeDir);
   }
   const irisProgress = props[ANIM_PROPS.IRIS_PROGRESS];
   if (irisProgress !== void 0 && props[ANIM_PROPS.IRIS_TYPE]) {
-    applyIrisClip(ctx, width, height, irisProgress);
+    applyIrisClip(ctx2, width, height, irisProgress);
   }
   const curtainProgress = props[ANIM_PROPS.CURTAIN_PROGRESS];
   if (curtainProgress !== void 0 && props[ANIM_PROPS.CURTAIN_TYPE]) {
-    applyCurtainClip(ctx, width, height, curtainProgress);
+    applyCurtainClip(ctx2, width, height, curtainProgress);
   }
 }
-function applyBlurFilter(ctx, blurAmount, scale = 1) {
+function applyBlurFilter(ctx2, blurAmount, scale = 1) {
   if (blurAmount > 0) {
     try {
-      ctx.filter = `blur(${blurAmount * scale}px)`;
+      ctx2.filter = `blur(${blurAmount * scale}px)`;
     } catch {
     }
   }
@@ -9408,23 +9404,23 @@ function detectActivePostEffects(props) {
 function charSpacingToPx(charSpacing, fontSize) {
   return charSpacing / 1e3 * fontSize;
 }
-function measureTextWithSpacing(ctx, text, spacingPx) {
+function measureTextWithSpacing(ctx2, text, spacingPx) {
   const graphemes = toGraphemes(text);
-  if (graphemes.length <= 1) return ctx.measureText(text).width;
+  if (graphemes.length <= 1) return ctx2.measureText(text).width;
   let width = 0;
   for (const g of graphemes) {
-    width += ctx.measureText(g).width;
+    width += ctx2.measureText(g).width;
   }
   width += (graphemes.length - 1) * spacingPx;
   return width;
 }
-function drawTextWithSpacing(ctx, text, x, y, textAlign, spacingPx, draw) {
+function drawTextWithSpacing(ctx2, text, x, y, textAlign, spacingPx, draw) {
   const graphemes = toGraphemes(text);
   if (graphemes.length === 0) return;
   const charWidths = new Array(graphemes.length);
   let totalWidth = 0;
   for (let i = 0; i < graphemes.length; i++) {
-    charWidths[i] = ctx.measureText(graphemes[i]).width;
+    charWidths[i] = ctx2.measureText(graphemes[i]).width;
     totalWidth += charWidths[i];
   }
   totalWidth += (graphemes.length - 1) * spacingPx;
@@ -9436,86 +9432,86 @@ function drawTextWithSpacing(ctx, text, x, y, textAlign, spacingPx, draw) {
   } else {
     startX = x;
   }
-  const savedAlign = ctx.textAlign;
-  ctx.textAlign = "left";
+  const savedAlign = ctx2.textAlign;
+  ctx2.textAlign = "left";
   let curX = startX;
   for (let i = 0; i < graphemes.length; i++) {
     draw(graphemes[i], curX, y);
     curX += charWidths[i] + spacingPx;
   }
-  ctx.textAlign = savedAlign;
+  ctx2.textAlign = savedAlign;
 }
-function fillTextWithSpacing(ctx, text, x, y, textAlign, spacingPx) {
+function fillTextWithSpacing(ctx2, text, x, y, textAlign, spacingPx) {
   drawTextWithSpacing(
-    ctx,
+    ctx2,
     text,
     x,
     y,
     textAlign,
     spacingPx,
-    (g, gx, gy) => ctx.fillText(g, gx, gy)
+    (g, gx, gy) => ctx2.fillText(g, gx, gy)
   );
 }
-function strokeTextWithSpacing(ctx, text, x, y, textAlign, spacingPx) {
+function strokeTextWithSpacing(ctx2, text, x, y, textAlign, spacingPx) {
   drawTextWithSpacing(
-    ctx,
+    ctx2,
     text,
     x,
     y,
     textAlign,
     spacingPx,
-    (g, gx, gy) => ctx.strokeText(g, gx, gy)
+    (g, gx, gy) => ctx2.strokeText(g, gx, gy)
   );
 }
-function createTextGradient(ctx, colors, width) {
-  const gradient = ctx.createLinearGradient(-width / 2, 0, width / 2, 0);
+function createTextGradient(ctx2, colors, width) {
+  const gradient = ctx2.createLinearGradient(-width / 2, 0, width / 2, 0);
   gradient.addColorStop(0, colors[0]);
   gradient.addColorStop(1, colors[1]);
   return gradient;
 }
 
 // ../../shared/canvas/textDrawUtils.ts
-function captureShadow(ctx) {
+function captureShadow(ctx2) {
   return {
-    shadowColor: ctx.shadowColor,
-    shadowBlur: ctx.shadowBlur,
-    shadowOffsetX: ctx.shadowOffsetX,
-    shadowOffsetY: ctx.shadowOffsetY
+    shadowColor: ctx2.shadowColor,
+    shadowBlur: ctx2.shadowBlur,
+    shadowOffsetX: ctx2.shadowOffsetX,
+    shadowOffsetY: ctx2.shadowOffsetY
   };
 }
-function restoreShadow(ctx, state) {
-  ctx.shadowColor = state.shadowColor;
-  ctx.shadowBlur = state.shadowBlur;
-  ctx.shadowOffsetX = state.shadowOffsetX;
-  ctx.shadowOffsetY = state.shadowOffsetY;
+function restoreShadow(ctx2, state) {
+  ctx2.shadowColor = state.shadowColor;
+  ctx2.shadowBlur = state.shadowBlur;
+  ctx2.shadowOffsetX = state.shadowOffsetX;
+  ctx2.shadowOffsetY = state.shadowOffsetY;
 }
-function disableShadow(ctx) {
-  ctx.shadowColor = "rgba(0,0,0,0)";
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
+function disableShadow(ctx2) {
+  ctx2.shadowColor = "rgba(0,0,0,0)";
+  ctx2.shadowBlur = 0;
+  ctx2.shadowOffsetX = 0;
+  ctx2.shadowOffsetY = 0;
 }
-function setupStrokeLineProperties(ctx, strokeWidth, strokeColor) {
-  ctx.lineWidth = strokeWidth;
-  ctx.lineJoin = "miter";
-  ctx.lineCap = "butt";
-  ctx.miterLimit = 4;
-  ctx.strokeStyle = strokeColor;
+function setupStrokeLineProperties(ctx2, strokeWidth, strokeColor) {
+  ctx2.lineWidth = strokeWidth;
+  ctx2.lineJoin = "miter";
+  ctx2.lineCap = "butt";
+  ctx2.miterLimit = 4;
+  ctx2.strokeStyle = strokeColor;
 }
-function drawStrokeTextLines(ctx, lines, lineXs, lineYs, strokeColor, strokeWidth, textAlign, spacingPx = 0) {
+function drawStrokeTextLines(ctx2, lines, lineXs, lineYs, strokeColor, strokeWidth, textAlign, spacingPx = 0) {
   if (!(strokeWidth > 0 && strokeColor)) return;
-  setupStrokeLineProperties(ctx, strokeWidth, strokeColor);
+  setupStrokeLineProperties(ctx2, strokeWidth, strokeColor);
   if (spacingPx > 0) {
     for (let i = 0; i < lines.length; i++) {
-      strokeTextWithSpacing(ctx, lines[i], lineXs[i], lineYs[i], textAlign || ctx.textAlign, spacingPx);
+      strokeTextWithSpacing(ctx2, lines[i], lineXs[i], lineYs[i], textAlign || ctx2.textAlign, spacingPx);
     }
   } else {
     for (let i = 0; i < lines.length; i++) {
-      ctx.strokeText(lines[i], lineXs[i], lineYs[i]);
+      ctx2.strokeText(lines[i], lineXs[i], lineYs[i]);
     }
   }
 }
-function drawTextDecorations(ctx, {
+function drawTextDecorations(ctx2, {
   underline,
   linethrough,
   textColor,
@@ -9527,7 +9523,7 @@ function drawTextDecorations(ctx, {
 }) {
   if (!underline && !linethrough) return;
   const decorationLineWidth = Math.max(1, Math.round(fontSize / 15));
-  setupStrokeLineProperties(ctx, decorationLineWidth, textColor);
+  setupStrokeLineProperties(ctx2, decorationLineWidth, textColor);
   const crispY = (y, lw) => lw % 2 === 1 ? Math.round(y) + 0.5 : Math.round(y);
   for (let i = 0; i < lineWs.length; i++) {
     const lineW = lineWs[i];
@@ -9539,23 +9535,23 @@ function drawTextDecorations(ctx, {
         lineYs[i] + fontSize * 0.1,
         decorationLineWidth
       );
-      ctx.beginPath();
-      ctx.moveTo(startX, underlineY);
-      ctx.lineTo(startX + lineW, underlineY);
-      ctx.stroke();
+      ctx2.beginPath();
+      ctx2.moveTo(startX, underlineY);
+      ctx2.lineTo(startX + lineW, underlineY);
+      ctx2.stroke();
     }
     if (linethrough) {
       const throughY = crispY(lineYs[i] - fontSize * 0.315, decorationLineWidth);
-      ctx.beginPath();
-      ctx.moveTo(startX, throughY);
-      ctx.lineTo(startX + lineW, throughY);
-      ctx.stroke();
+      ctx2.beginPath();
+      ctx2.moveTo(startX, throughY);
+      ctx2.lineTo(startX + lineW, throughY);
+      ctx2.stroke();
     }
   }
 }
 
 // ../../shared/canvas/textWrapUtils.ts
-function wrapTextByGrapheme(text, maxWidth, ctx, spacingPx = 0) {
+function wrapTextByGrapheme(text, maxWidth, ctx2, spacingPx = 0) {
   if (!text || maxWidth <= 0) {
     return [text || ""];
   }
@@ -9566,7 +9562,7 @@ function wrapTextByGrapheme(text, maxWidth, ctx, spacingPx = 0) {
       wrappedLines.push("");
       continue;
     }
-    const paragraphWidth = spacingPx === 0 ? ctx.measureText(paragraph).width : measureTextWithSpacing(ctx, paragraph, spacingPx);
+    const paragraphWidth = spacingPx === 0 ? ctx2.measureText(paragraph).width : measureTextWithSpacing(ctx2, paragraph, spacingPx);
     if (paragraphWidth <= maxWidth) {
       wrappedLines.push(paragraph);
       continue;
@@ -9576,7 +9572,7 @@ function wrapTextByGrapheme(text, maxWidth, ctx, spacingPx = 0) {
     for (let i = 0; i < graphemes.length; i++) {
       const char = graphemes[i];
       const testLine = currentLine + char;
-      const testWidth = spacingPx === 0 ? ctx.measureText(testLine).width : measureTextWithSpacing(ctx, testLine, spacingPx);
+      const testWidth = spacingPx === 0 ? ctx2.measureText(testLine).width : measureTextWithSpacing(ctx2, testLine, spacingPx);
       if (testWidth <= maxWidth) {
         currentLine = testLine;
       } else {
@@ -9599,20 +9595,20 @@ function wrapTextByGrapheme(text, maxWidth, ctx, spacingPx = 0) {
 // ../../shared/mask/maskPaths.ts
 var TWO_PI = Math.PI * 2;
 var DEG_TO_RAD = Math.PI / 180;
-function pathRect(ctx) {
-  ctx.rect(-1, -1, 2, 2);
+function pathRect(ctx2) {
+  ctx2.rect(-1, -1, 2, 2);
 }
-function pathCircle(ctx) {
-  ctx.arc(0, 0, 1, 0, TWO_PI);
+function pathCircle(ctx2) {
+  ctx2.arc(0, 0, 1, 0, TWO_PI);
 }
-function pathEllipse(ctx) {
-  if (ctx.ellipse) {
-    ctx.ellipse(0, 0, 1, 1, 0, 0, TWO_PI);
+function pathEllipse(ctx2) {
+  if (ctx2.ellipse) {
+    ctx2.ellipse(0, 0, 1, 1, 0, 0, TWO_PI);
   } else {
-    ctx.arc(0, 0, 1, 0, TWO_PI);
+    ctx2.arc(0, 0, 1, 0, TWO_PI);
   }
 }
-function pathStar(ctx, points, innerRadius) {
+function pathStar(ctx2, points, innerRadius) {
   const n = Math.max(3, Math.round(points));
   const step = Math.PI / n;
   const startAngle = -Math.PI / 2;
@@ -9621,54 +9617,54 @@ function pathStar(ctx, points, innerRadius) {
     const r = i % 2 === 0 ? 1 : innerRadius;
     const px = Math.cos(angle2) * r;
     const py = Math.sin(angle2) * r;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+    if (i === 0) ctx2.moveTo(px, py);
+    else ctx2.lineTo(px, py);
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function pathHeart(ctx) {
+function pathHeart(ctx2) {
   const s = 1.18;
-  if (ctx.bezierCurveTo) {
-    ctx.moveTo(0, s * 0.6);
-    ctx.bezierCurveTo(-s * 0.1, s * 0.3, -s * 0.85, s * 0.1, -s * 0.85, -s * 0.2);
-    ctx.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.35, -s * 0.8, 0, -s * 0.45);
-    ctx.bezierCurveTo(s * 0.35, -s * 0.8, s * 0.85, -s * 0.6, s * 0.85, -s * 0.2);
-    ctx.bezierCurveTo(s * 0.85, s * 0.1, s * 0.1, s * 0.3, 0, s * 0.6);
+  if (ctx2.bezierCurveTo) {
+    ctx2.moveTo(0, s * 0.6);
+    ctx2.bezierCurveTo(-s * 0.1, s * 0.3, -s * 0.85, s * 0.1, -s * 0.85, -s * 0.2);
+    ctx2.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.35, -s * 0.8, 0, -s * 0.45);
+    ctx2.bezierCurveTo(s * 0.35, -s * 0.8, s * 0.85, -s * 0.6, s * 0.85, -s * 0.2);
+    ctx2.bezierCurveTo(s * 0.85, s * 0.1, s * 0.1, s * 0.3, 0, s * 0.6);
   } else {
     const N = 40;
     for (let i = 0; i <= N; i++) {
       const t = i / N * TWO_PI;
       const px = 0.053 * 16 * Math.pow(Math.sin(t), 3);
       const py = -0.053 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+      if (i === 0) ctx2.moveTo(px, py);
+      else ctx2.lineTo(px, py);
     }
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function pathPolygon(ctx, sides) {
+function pathPolygon(ctx2, sides) {
   const n = Math.max(3, Math.round(sides));
   const startAngle = -Math.PI / 2;
   for (let i = 0; i < n; i++) {
     const angle2 = startAngle + i / n * TWO_PI;
     const px = Math.cos(angle2);
     const py = Math.sin(angle2);
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+    if (i === 0) ctx2.moveTo(px, py);
+    else ctx2.lineTo(px, py);
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function pathDiamond(ctx) {
-  ctx.moveTo(0, -1);
-  ctx.lineTo(1, 0);
-  ctx.lineTo(0, 1);
-  ctx.lineTo(-1, 0);
-  ctx.closePath();
+function pathDiamond(ctx2) {
+  ctx2.moveTo(0, -1);
+  ctx2.lineTo(1, 0);
+  ctx2.lineTo(0, 1);
+  ctx2.lineTo(-1, 0);
+  ctx2.closePath();
 }
-function pathCustom(ctx, pathData) {
+function pathCustom(ctx2, pathData) {
   const commands = pathData.match(/[MLCQAZ][^MLCQAZ]*/gi);
   if (!commands) {
-    ctx.rect(-1, -1, 2, 2);
+    ctx2.rect(-1, -1, 2, 2);
     return;
   }
   for (const cmd of commands) {
@@ -9676,86 +9672,86 @@ function pathCustom(ctx, pathData) {
     const nums = cmd.slice(1).trim().split(/[\s,]+/).map(Number).filter((n) => !isNaN(n));
     switch (type) {
       case "M":
-        if (nums.length >= 2) ctx.moveTo(nums[0], nums[1]);
+        if (nums.length >= 2) ctx2.moveTo(nums[0], nums[1]);
         break;
       case "L":
-        if (nums.length >= 2) ctx.lineTo(nums[0], nums[1]);
+        if (nums.length >= 2) ctx2.lineTo(nums[0], nums[1]);
         break;
       case "C":
-        if (nums.length >= 6 && ctx.bezierCurveTo) {
-          ctx.bezierCurveTo(nums[0], nums[1], nums[2], nums[3], nums[4], nums[5]);
+        if (nums.length >= 6 && ctx2.bezierCurveTo) {
+          ctx2.bezierCurveTo(nums[0], nums[1], nums[2], nums[3], nums[4], nums[5]);
         }
         break;
       case "Q":
-        if (nums.length >= 4) ctx.lineTo(nums[2], nums[3]);
+        if (nums.length >= 4) ctx2.lineTo(nums[2], nums[3]);
         break;
       case "A":
         break;
       case "Z":
-        ctx.closePath();
+        ctx2.closePath();
         break;
     }
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function drawShapePath(ctx, shape, mask) {
+function drawShapePath(ctx2, shape, mask) {
   switch (shape) {
     case "rect":
-      pathRect(ctx);
+      pathRect(ctx2);
       break;
     case "circle":
-      pathCircle(ctx);
+      pathCircle(ctx2);
       break;
     case "ellipse":
-      pathEllipse(ctx);
+      pathEllipse(ctx2);
       break;
     case "star":
-      pathStar(ctx, mask.sides ?? 5, mask.innerRadius ?? 0.4);
+      pathStar(ctx2, mask.sides ?? 5, mask.innerRadius ?? 0.4);
       break;
     case "heart":
-      pathHeart(ctx);
+      pathHeart(ctx2);
       break;
     case "polygon":
-      pathPolygon(ctx, mask.sides ?? 6);
+      pathPolygon(ctx2, mask.sides ?? 6);
       break;
     case "diamond":
-      pathDiamond(ctx);
+      pathDiamond(ctx2);
       break;
     case "custom":
-      if (mask.pathData) pathCustom(ctx, mask.pathData);
-      else ctx.rect(-1, -1, 2, 2);
+      if (mask.pathData) pathCustom(ctx2, mask.pathData);
+      else ctx2.rect(-1, -1, 2, 2);
       break;
     default:
-      ctx.rect(-1, -1, 2, 2);
+      ctx2.rect(-1, -1, 2, 2);
       break;
   }
 }
-function applyMaskClip(ctx, elementWidth, elementHeight, mask) {
+function applyMaskClip(ctx2, elementWidth, elementHeight, mask) {
   if (!mask.enabled) return;
   const halfW = elementWidth / 2;
   const halfH = elementHeight / 2;
-  ctx.save();
-  ctx.translate(mask.x, mask.y);
+  ctx2.save();
+  ctx2.translate(mask.x, mask.y);
   if (mask.rotation !== 0) {
-    ctx.rotate(mask.rotation * DEG_TO_RAD);
+    ctx2.rotate(mask.rotation * DEG_TO_RAD);
   }
-  ctx.scale(halfW * mask.scaleX, halfH * mask.scaleY);
-  ctx.beginPath();
+  ctx2.scale(halfW * mask.scaleX, halfH * mask.scaleY);
+  ctx2.beginPath();
   if (mask.inverted) {
-    ctx.restore();
-    ctx.beginPath();
-    ctx.rect(-halfW * 2, -halfH * 2, halfW * 4, halfH * 4);
-    ctx.save();
-    ctx.translate(mask.x, mask.y);
-    if (mask.rotation !== 0) ctx.rotate(mask.rotation * DEG_TO_RAD);
-    ctx.scale(halfW * mask.scaleX, halfH * mask.scaleY);
-    drawShapePath(ctx, mask.shapeType, mask);
-    ctx.restore();
-    ctx.clip("evenodd");
+    ctx2.restore();
+    ctx2.beginPath();
+    ctx2.rect(-halfW * 2, -halfH * 2, halfW * 4, halfH * 4);
+    ctx2.save();
+    ctx2.translate(mask.x, mask.y);
+    if (mask.rotation !== 0) ctx2.rotate(mask.rotation * DEG_TO_RAD);
+    ctx2.scale(halfW * mask.scaleX, halfH * mask.scaleY);
+    drawShapePath(ctx2, mask.shapeType, mask);
+    ctx2.restore();
+    ctx2.clip("evenodd");
   } else {
-    drawShapePath(ctx, mask.shapeType, mask);
-    ctx.restore();
-    ctx.clip();
+    drawShapePath(ctx2, mask.shapeType, mask);
+    ctx2.restore();
+    ctx2.clip();
   }
 }
 
@@ -9990,46 +9986,46 @@ function getCompositeFilter(props) {
   if (bl) parts.push(`blur(${bl}px)`);
   return parts.length ? parts.join(" ") : "none";
 }
-function buildRoundedRectPath(ctx, w, h, r) {
+function buildRoundedRectPath(ctx2, w, h, r) {
   const x = -w / 2;
   const y = -h / 2;
   const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-  ctx.beginPath();
+  ctx2.beginPath();
   if (rr > 0) {
-    ctx.moveTo(x + rr, y);
-    ctx.lineTo(x + w - rr, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-    ctx.lineTo(x + w, y + h - rr);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-    ctx.lineTo(x + rr, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-    ctx.lineTo(x, y + rr);
-    ctx.quadraticCurveTo(x, y, x + rr, y);
-    ctx.closePath();
+    ctx2.moveTo(x + rr, y);
+    ctx2.lineTo(x + w - rr, y);
+    ctx2.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx2.lineTo(x + w, y + h - rr);
+    ctx2.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx2.lineTo(x + rr, y + h);
+    ctx2.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx2.lineTo(x, y + rr);
+    ctx2.quadraticCurveTo(x, y, x + rr, y);
+    ctx2.closePath();
   } else {
-    ctx.rect(x, y, w, h);
+    ctx2.rect(x, y, w, h);
   }
 }
-function drawRoundedRect(ctx, x, y, width, height, rx, ry, fillColor) {
-  ctx.save();
-  ctx.fillStyle = fillColor;
+function drawRoundedRect(ctx2, x, y, width, height, rx, ry, fillColor) {
+  ctx2.save();
+  ctx2.fillStyle = fillColor;
   rx = Math.min(rx, width / 2);
   ry = Math.min(ry, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rx, y);
-  ctx.lineTo(x + width - rx, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + ry);
-  ctx.lineTo(x + width, y + height - ry);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - rx, y + height);
-  ctx.lineTo(x + rx, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - ry);
-  ctx.lineTo(x, y + ry);
-  ctx.quadraticCurveTo(x, y, x + rx, y);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  ctx2.beginPath();
+  ctx2.moveTo(x + rx, y);
+  ctx2.lineTo(x + width - rx, y);
+  ctx2.quadraticCurveTo(x + width, y, x + width, y + ry);
+  ctx2.lineTo(x + width, y + height - ry);
+  ctx2.quadraticCurveTo(x + width, y + height, x + width - rx, y + height);
+  ctx2.lineTo(x + rx, y + height);
+  ctx2.quadraticCurveTo(x, y + height, x, y + height - ry);
+  ctx2.lineTo(x, y + ry);
+  ctx2.quadraticCurveTo(x, y, x + rx, y);
+  ctx2.closePath();
+  ctx2.fill();
+  ctx2.restore();
 }
-function drawMediaBorder(ctx, props) {
+function drawMediaBorder(ctx2, props) {
   const bw = props.borderWidth ?? 0;
   const bc = props.borderColor;
   if (!bw || !bc) return;
@@ -10037,62 +10033,62 @@ function drawMediaBorder(ctx, props) {
   const h = props.height;
   const r = Math.max(0, Math.min(props.borderRadius ?? 0, Math.min(w, h) / 2));
   const style = props.borderStyle || "solid";
-  ctx.save();
-  const prevDash = ctx.getLineDash ? ctx.getLineDash() : [];
-  const prevCap = ctx.lineCap;
-  ctx.lineWidth = bw;
-  ctx.strokeStyle = bc;
+  ctx2.save();
+  const prevDash = ctx2.getLineDash ? ctx2.getLineDash() : [];
+  const prevCap = ctx2.lineCap;
+  ctx2.lineWidth = bw;
+  ctx2.strokeStyle = bc;
   if (style === "dashed") {
     const dash = Math.max(4, bw * 4);
     const gap = Math.max(4, bw * 2);
     try {
-      ctx.setLineDash([dash, gap]);
+      ctx2.setLineDash([dash, gap]);
     } catch {
     }
-    ctx.lineCap = "butt";
+    ctx2.lineCap = "butt";
   } else if (style === "dotted") {
     const dot = Math.max(1, Math.round(bw));
     const gap = Math.max(2, bw * 1.5);
     try {
-      ctx.setLineDash([dot, gap]);
+      ctx2.setLineDash([dot, gap]);
     } catch {
     }
-    ctx.lineCap = "round";
+    ctx2.lineCap = "round";
   } else {
     try {
-      ctx.setLineDash([]);
+      ctx2.setLineDash([]);
     } catch {
     }
-    ctx.lineCap = "butt";
+    ctx2.lineCap = "butt";
   }
   const x = -w / 2;
   const y = -h / 2;
-  const t = ctx.getTransform ? ctx.getTransform() : null;
+  const t = ctx2.getTransform ? ctx2.getTransform() : null;
   const axisAligned = t && Math.abs(t.b) < 1e-3 && Math.abs(t.c) < 1e-3 && Math.abs(t.a - 1) < 1e-3 && Math.abs(t.d - 1) < 1e-3;
-  const odd = (ctx.lineWidth & 1) === 1;
+  const odd = (ctx2.lineWidth & 1) === 1;
   const offset = axisAligned && odd ? 0.5 : 0;
-  ctx.beginPath();
+  ctx2.beginPath();
   if (r > 0) {
-    ctx.moveTo(x + r + offset, y + offset);
-    ctx.lineTo(x + w - r - offset, y + offset);
-    ctx.quadraticCurveTo(x + w - offset, y + offset, x + w - offset, y + r + offset);
-    ctx.lineTo(x + w - offset, y + h - r - offset);
-    ctx.quadraticCurveTo(x + w - offset, y + h - offset, x + w - r - offset, y + h - offset);
-    ctx.lineTo(x + r + offset, y + h - offset);
-    ctx.quadraticCurveTo(x + offset, y + h - offset, x + offset, y + h - r - offset);
-    ctx.lineTo(x + offset, y + r + offset);
-    ctx.quadraticCurveTo(x + offset, y + offset, x + r + offset, y + offset);
+    ctx2.moveTo(x + r + offset, y + offset);
+    ctx2.lineTo(x + w - r - offset, y + offset);
+    ctx2.quadraticCurveTo(x + w - offset, y + offset, x + w - offset, y + r + offset);
+    ctx2.lineTo(x + w - offset, y + h - r - offset);
+    ctx2.quadraticCurveTo(x + w - offset, y + h - offset, x + w - r - offset, y + h - offset);
+    ctx2.lineTo(x + r + offset, y + h - offset);
+    ctx2.quadraticCurveTo(x + offset, y + h - offset, x + offset, y + h - r - offset);
+    ctx2.lineTo(x + offset, y + r + offset);
+    ctx2.quadraticCurveTo(x + offset, y + offset, x + r + offset, y + offset);
   } else {
-    ctx.rect(x + offset, y + offset, w - offset * 2, h - offset * 2);
+    ctx2.rect(x + offset, y + offset, w - offset * 2, h - offset * 2);
   }
-  ctx.closePath();
-  ctx.stroke();
+  ctx2.closePath();
+  ctx2.stroke();
   try {
-    ctx.setLineDash(prevDash);
+    ctx2.setLineDash(prevDash);
   } catch {
   }
-  ctx.lineCap = prevCap;
-  ctx.restore();
+  ctx2.lineCap = prevCap;
+  ctx2.restore();
 }
 function computeCoverSourceRect(sourceW, sourceH, targetW, targetH) {
   if (sourceW <= 0 || sourceH <= 0 || targetW <= 0 || targetH <= 0) {
@@ -10110,7 +10106,7 @@ function computeCoverSourceRect(sourceW, sourceH, targetW, targetH) {
   const sy = Math.max(0, Math.floor((sourceH - cropH) / 2));
   return { sx, sy, sw: Math.floor(cropW), sh: Math.floor(cropH) };
 }
-function drawMediaCore(ctx, img, imgW, imgH, params) {
+function drawMediaCore(ctx2, img, imgW, imgH, params) {
   const { width, height, filter, borderRadius = 0 } = params;
   const hasRadius = borderRadius > 0;
   const hasFilter = !!filter && filter !== "none";
@@ -10121,13 +10117,13 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
   const useHardClipMask = hasMask && !isEffectMask && maskFeather <= 0;
   if (hasFilter) {
     try {
-      ctx.filter = filter;
+      ctx2.filter = filter;
     } catch {
     }
   }
   if (useHardClipMask) {
-    ctx.save();
-    applyMaskClip(ctx, width, height, {
+    ctx2.save();
+    applyMaskClip(ctx2, width, height, {
       enabled: true,
       shapeType: params.maskShapeType,
       x: params.maskX ?? 0,
@@ -10142,9 +10138,9 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
     });
   }
   if (hasRadius) {
-    ctx.save();
-    buildRoundedRectPath(ctx, width, height, borderRadius);
-    ctx.clip();
+    ctx2.save();
+    buildRoundedRectPath(ctx2, width, height, borderRadius);
+    ctx2.clip();
   }
   const hasCrop = (params.cropWidth ?? 0) > 0 && (params.cropHeight ?? 0) > 0;
   let sx, sy, sw, sh;
@@ -10162,18 +10158,18 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
     sw = cover.sw;
     sh = cover.sh;
   }
-  ctx.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
+  ctx2.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
   if (hasFilter) {
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
   }
   if (isEffectMask) {
     const effectType = params.maskEffectType ?? "blur";
     const intensity = params.maskEffectIntensity ?? 50;
-    ctx.save();
-    applyMaskClip(ctx, width, height, {
+    ctx2.save();
+    applyMaskClip(ctx2, width, height, {
       enabled: true,
       shapeType: params.maskShapeType,
       x: params.maskX ?? 0,
@@ -10190,10 +10186,10 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
       case "blur": {
         const blurPx = Math.max(1, Math.round(intensity * 0.4));
         try {
-          ctx.filter = `blur(${blurPx}px)`;
+          ctx2.filter = `blur(${blurPx}px)`;
         } catch {
         }
-        ctx.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
+        ctx2.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
         break;
       }
       case "pixelate":
@@ -10206,84 +10202,84 @@ function drawMediaCore(ctx, img, imgW, imgH, params) {
           const offCtx = off.getContext("2d");
           if (offCtx) {
             offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, smallW, smallH);
-            const prevSmoothing = ctx.imageSmoothingEnabled;
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(off, 0, 0, smallW, smallH, -width / 2, -height / 2, width, height);
-            ctx.imageSmoothingEnabled = prevSmoothing;
+            const prevSmoothing = ctx2.imageSmoothingEnabled;
+            ctx2.imageSmoothingEnabled = false;
+            ctx2.drawImage(off, 0, 0, smallW, smallH, -width / 2, -height / 2, width, height);
+            ctx2.imageSmoothingEnabled = prevSmoothing;
           }
         } else {
-          const prevSmoothing = ctx.imageSmoothingEnabled;
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
-          ctx.imageSmoothingEnabled = prevSmoothing;
+          const prevSmoothing = ctx2.imageSmoothingEnabled;
+          ctx2.imageSmoothingEnabled = false;
+          ctx2.drawImage(img, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
+          ctx2.imageSmoothingEnabled = prevSmoothing;
         }
         break;
       }
       case "darken": {
         const alpha = Math.min(0.9, intensity / 100);
-        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-        ctx.fillRect(-width / 2, -height / 2, width, height);
+        ctx2.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx2.fillRect(-width / 2, -height / 2, width, height);
         break;
       }
       case "brighten": {
         const alpha = Math.min(0.9, intensity / 100);
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-        ctx.fillRect(-width / 2, -height / 2, width, height);
+        ctx2.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx2.fillRect(-width / 2, -height / 2, width, height);
         break;
       }
     }
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
-    ctx.restore();
+    ctx2.restore();
   }
   if (hasRadius) {
-    ctx.restore();
+    ctx2.restore();
   }
   if (hasMask && maskFeather > 0) {
-    const prevComposite = ctx.globalCompositeOperation;
-    ctx.globalCompositeOperation = "destination-in";
+    const prevComposite = ctx2.globalCompositeOperation;
+    ctx2.globalCompositeOperation = "destination-in";
     try {
-      ctx.filter = `blur(${maskFeather}px)`;
+      ctx2.filter = `blur(${maskFeather}px)`;
     } catch {
     }
-    ctx.save();
-    ctx.translate(params.maskX ?? 0, params.maskY ?? 0);
+    ctx2.save();
+    ctx2.translate(params.maskX ?? 0, params.maskY ?? 0);
     if ((params.maskRotation ?? 0) !== 0) {
-      ctx.rotate((params.maskRotation ?? 0) * Math.PI / 180);
+      ctx2.rotate((params.maskRotation ?? 0) * Math.PI / 180);
     }
-    ctx.scale(
+    ctx2.scale(
       width / 2 * (params.maskScaleX ?? 1),
       height / 2 * (params.maskScaleY ?? 1)
     );
-    ctx.beginPath();
+    ctx2.beginPath();
     const shapeType = params.maskShapeType;
     switch (shapeType) {
       case "circle":
-        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx2.arc(0, 0, 1, 0, Math.PI * 2);
         break;
       case "rect":
-        ctx.rect(-1, -1, 2, 2);
+        ctx2.rect(-1, -1, 2, 2);
         break;
       case "ellipse":
-        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx2.arc(0, 0, 1, 0, Math.PI * 2);
         break;
       default:
-        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx2.arc(0, 0, 1, 0, Math.PI * 2);
         break;
     }
-    ctx.restore();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
+    ctx2.restore();
+    ctx2.fillStyle = "#FFFFFF";
+    ctx2.fill();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
-    ctx.globalCompositeOperation = prevComposite;
+    ctx2.globalCompositeOperation = prevComposite;
   }
   if (useHardClipMask) {
-    ctx.restore();
+    ctx2.restore();
   }
 }
 
@@ -11093,40 +11089,40 @@ function computeStaggerStart(index, count, overlap, windowSize, distribution, ra
   const mappedIndex = mapFn ? mapFn(normalizedIndex) : normalizedIndex;
   return mappedIndex * (count - 1) * (1 - overlap) * windowSize;
 }
-function handleTypewriter2(state, ctx) {
+function handleTypewriter2(state, ctx2) {
   state.isTypewriter = true;
   const typewriterProgress = Math.min(
     1,
-    Math.max(0, ctx.elapsed / ctx.effectDuration)
+    Math.max(0, ctx2.elapsed / ctx2.effectDuration)
   );
   if (typewriterProgress >= ANIMATION_THRESHOLDS.TYPEWRITER_COMPLETE) {
-    state.visibleCharCount = ctx.textLength;
+    state.visibleCharCount = ctx2.textLength;
     state.typewriterFractionalChar = void 0;
   } else {
-    const rawCount = ctx.textLength * typewriterProgress;
+    const rawCount = ctx2.textLength * typewriterProgress;
     state.visibleCharCount = Math.floor(rawCount);
     state.typewriterFractionalChar = rawCount - state.visibleCharCount;
   }
-  if (ctx.isEntering) {
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (ctx2.isEntering) {
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
   }
 }
-function handleTypewriterWord(state, ctx) {
+function handleTypewriterWord(state, ctx2) {
   state.isTypewriter = true;
   state.isTypewriterWord = true;
   const typewriterProgress = Math.min(
     1,
-    Math.max(0, ctx.elapsed / ctx.effectDuration)
+    Math.max(0, ctx2.elapsed / ctx2.effectDuration)
   );
-  const boundaries = getWordBoundaries(ctx.captionText);
+  const boundaries = getWordBoundaries(ctx2.captionText);
   if (typewriterProgress >= ANIMATION_THRESHOLDS.TYPEWRITER_COMPLETE || boundaries.length === 0) {
-    state.visibleCharCount = ctx.textLength;
+    state.visibleCharCount = ctx2.textLength;
   } else {
     const wordIndex = Math.floor(boundaries.length * typewriterProgress);
     state.visibleCharCount = wordIndex > 0 ? boundaries[wordIndex - 1] : 0;
   }
-  if (ctx.isEntering) {
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (ctx2.isEntering) {
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
   }
 }
 var KARAOKE_STYLE_APPLIERS = {
@@ -11166,7 +11162,7 @@ var KARAOKE_STYLE_APPLIERS = {
     s.fill = isHighlighted ? getRainbowColor(i, textLength) : defaultColor;
   }
 };
-function handleKaraoke(state, ctx) {
+function handleKaraoke(state, ctx2) {
   const {
     animation,
     textLength,
@@ -11175,35 +11171,35 @@ function handleKaraoke(state, ctx) {
     elapsed,
     inDuration,
     isEntering
-  } = ctx;
+  } = ctx2;
   state.isKaraoke = true;
   state.karaokeProgress = effectProgress;
   state.karaokeHighlightColor = animation.karaokeHighlightColor || "#FFFF00";
   const preset = animation.preset;
   const mappedStyle = preset in KARAOKE_PRESET_STYLE_MAP ? KARAOKE_PRESET_STYLE_MAP[preset] : null;
   state.karaokeStyle = mappedStyle || animation.karaokeStyle || "classic";
-  const highlightedChars = ctx.wordTimings && ctx.wordTimings.length > 0 ? computeWordTimingHighlight(
-    ctx.currentTimeMs,
-    ctx.wordTimings,
+  const highlightedChars = ctx2.wordTimings && ctx2.wordTimings.length > 0 ? computeWordTimingHighlight(
+    ctx2.currentTimeMs,
+    ctx2.wordTimings,
     textLength
   ) : Math.floor(textLength * effectProgress);
   const charStyles = acquireCharStyles(textLength);
   const hc = state.karaokeHighlightColor;
   let fractionalHighlightIdx = highlightedChars;
-  if (ctx.wordTimings && ctx.wordTimings.length > 0) {
-    for (let wi = 0; wi < ctx.wordTimings.length; wi++) {
-      const w = ctx.wordTimings[wi];
-      if (ctx.currentTimeMs >= w.startMs && ctx.currentTimeMs < w.endMs) {
+  if (ctx2.wordTimings && ctx2.wordTimings.length > 0) {
+    for (let wi = 0; wi < ctx2.wordTimings.length; wi++) {
+      const w = ctx2.wordTimings[wi];
+      if (ctx2.currentTimeMs >= w.startMs && ctx2.currentTimeMs < w.endMs) {
         const wordDuration = w.endMs - w.startMs;
         const wordProgress = Math.max(
           0,
           Math.min(
             1,
-            (ctx.currentTimeMs - w.startMs) / Math.max(1, wordDuration)
+            (ctx2.currentTimeMs - w.startMs) / Math.max(1, wordDuration)
           )
         );
-        const wordCharCount = w.charEndIndex - (wi > 0 ? ctx.wordTimings[wi - 1].charEndIndex : 0);
-        const wordStartIdx = wi > 0 ? ctx.wordTimings[wi - 1].charEndIndex : 0;
+        const wordCharCount = w.charEndIndex - (wi > 0 ? ctx2.wordTimings[wi - 1].charEndIndex : 0);
+        const wordStartIdx = wi > 0 ? ctx2.wordTimings[wi - 1].charEndIndex : 0;
         fractionalHighlightIdx = wordStartIdx + wordProgress * wordCharCount;
         break;
       }
@@ -11232,8 +11228,8 @@ function handleKaraoke(state, ctx) {
     state.opacity = entranceEasing(elapsed / inDuration);
   }
 }
-function handleNeon(state, ctx) {
-  const { textLength, currentTimeMs, isEntering, elapsed, inDuration } = ctx;
+function handleNeon(state, ctx2) {
+  const { textLength, currentTimeMs, isEntering, elapsed, inDuration } = ctx2;
   state.isNeon = true;
   const colorIndex = Math.floor(
     currentTimeMs * ANIMATION_SPEEDS.NEON_COLOR_CYCLE % NEON_COLORS.length
@@ -11259,10 +11255,10 @@ function handleNeon(state, ctx) {
     state.opacity = entranceEasing(elapsed / inDuration);
   }
 }
-function applyLoopSpec(spec, state, ctx) {
+function applyLoopSpec(spec, state, ctx2) {
   for (const osc of spec.oscillations) {
     const base = osc.base ?? (osc.property.startsWith("scale") ? 1 : 0);
-    const value = osc.amplitude * Math.sin(ctx.currentTimeMs * osc.frequency);
+    const value = osc.amplitude * Math.sin(ctx2.currentTimeMs * osc.frequency);
     if (osc.additive) {
       state[osc.property] += value;
     } else {
@@ -11270,39 +11266,39 @@ function applyLoopSpec(spec, state, ctx) {
     }
   }
   if (spec.syncScale) state.scaleY = state.scaleX;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyCharLoopSpec(spec, state, ctx) {
-  const { textLength, currentTimeMs, defaultColor } = ctx;
+function applyCharLoopSpec(spec, state, ctx2) {
+  const { textLength, currentTimeMs, defaultColor } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   for (let i = 0; i < textLength; i++) {
     charStyles[i][spec.charProperty] = spec.amplitude * Math.sin(currentTimeMs * spec.frequency + i * spec.charPhase);
     if (spec.setFill) charStyles[i].fill = defaultColor;
   }
   state.charStyles = charStyles;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyCharStaggerSpec(spec, state, ctx) {
+function applyCharStaggerSpec(spec, state, ctx2) {
   const {
     textLength,
     effectProgress,
     defaultColor,
     defaultColorRgb: { r, g, b }
-  } = ctx;
+  } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   const windowSize = 1 / (textLength * (1 - spec.overlap) + spec.overlap);
-  const alphaEasingFn = ctx.customEasing || entranceEasing;
-  const scaleEasingFn = spec._scaleEasingFn || ctx.customScaleEasing || easeOutBack2;
-  const randomOrder = ctx.staggerDistribution === "random" ? getRandomStaggerOrder(textLength) : void 0;
+  const alphaEasingFn = ctx2.customEasing || entranceEasing;
+  const scaleEasingFn = spec._scaleEasingFn || ctx2.customScaleEasing || easeOutBack2;
+  const randomOrder = ctx2.staggerDistribution === "random" ? getRandomStaggerOrder(textLength) : void 0;
   for (let i = 0; i < textLength; i++) {
     const charStart = computeStaggerStart(
       i,
       textLength,
       spec.overlap,
       windowSize,
-      ctx.staggerDistribution,
+      ctx2.staggerDistribution,
       randomOrder
     );
     const raw = (effectProgress - charStart) / windowSize;
@@ -11364,8 +11360,8 @@ function lerpHexColor(colorA, colorB, t) {
     1
   );
 }
-function applyCharColorCycleSpec(spec, state, ctx) {
-  const { textLength, currentTimeMs } = ctx;
+function applyCharColorCycleSpec(spec, state, ctx2) {
+  const { textLength, currentTimeMs } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   const phase = currentTimeMs * spec.speed;
   for (let i = 0; i < textLength; i++) {
@@ -11373,18 +11369,18 @@ function applyCharColorCycleSpec(spec, state, ctx) {
     charStyles[i].fill = cachedHsl(hue, spec.saturation, spec.lightness);
   }
   state.charStyles = charStyles;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyWordStaggerSpec(spec, state, ctx) {
+function applyWordStaggerSpec(spec, state, ctx2) {
   const {
     textLength,
     effectProgress,
     defaultColor,
     defaultColorRgb: { r, g, b }
-  } = ctx;
+  } = ctx2;
   const charStyles = acquireCharStyles(textLength);
-  const boundaries = getWordBoundaries(ctx.captionText);
+  const boundaries = getWordBoundaries(ctx2.captionText);
   const wordCount = boundaries.length;
   if (wordCount === 0) {
     for (let i = 0; i < textLength; i++) charStyles[i].fill = defaultColor;
@@ -11392,9 +11388,9 @@ function applyWordStaggerSpec(spec, state, ctx) {
     return;
   }
   const windowSize = 1 / (wordCount * (1 - spec.overlap) + spec.overlap);
-  const alphaEasingFn = ctx.customEasing || entranceEasing;
-  const scaleEasingFn = spec._scaleEasingFn || ctx.customScaleEasing || easeOutBack2;
-  const randomOrder = ctx.staggerDistribution === "random" ? getRandomStaggerOrder(wordCount) : void 0;
+  const alphaEasingFn = ctx2.customEasing || entranceEasing;
+  const scaleEasingFn = spec._scaleEasingFn || ctx2.customScaleEasing || easeOutBack2;
+  const randomOrder = ctx2.staggerDistribution === "random" ? getRandomStaggerOrder(wordCount) : void 0;
   let wordIdx = 0;
   for (let i = 0; i < textLength; i++) {
     while (wordIdx < boundaries.length - 1 && i >= boundaries[wordIdx])
@@ -11404,7 +11400,7 @@ function applyWordStaggerSpec(spec, state, ctx) {
       wordCount,
       spec.overlap,
       windowSize,
-      ctx.staggerDistribution,
+      ctx2.staggerDistribution,
       randomOrder
     );
     const rawProgress = (effectProgress - wordStart) / windowSize;
@@ -11433,13 +11429,13 @@ function applyWordStaggerSpec(spec, state, ctx) {
   }
   state.charStyles = charStyles;
 }
-function applyGlitchSpec(spec, state, ctx) {
+function applyGlitchSpec(spec, state, ctx2) {
   const {
     textLength,
     currentTimeMs,
     defaultColor,
     defaultColorRgb: { r, g, b }
-  } = ctx;
+  } = ctx2;
   const noiseTrigger = noise2D(currentTimeMs * spec.triggerFrequency, 0.5);
   const absTrigger = Math.abs(noiseTrigger);
   const isActive = absTrigger > spec.triggerThreshold;
@@ -11469,11 +11465,11 @@ function applyGlitchSpec(spec, state, ctx) {
     }
   }
   state.charStyles = charStyles;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyCharShadowLoopSpec(spec, state, ctx) {
-  const { textLength, currentTimeMs } = ctx;
+function applyCharShadowLoopSpec(spec, state, ctx2) {
+  const { textLength, currentTimeMs } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   const phase = currentTimeMs * spec.speed;
   for (let i = 0; i < textLength; i++) {
@@ -11486,14 +11482,14 @@ function applyCharShadowLoopSpec(spec, state, ctx) {
       spec.saturation,
       spec.lightness
     );
-    charStyles[i].fill = ctx.defaultColor;
+    charStyles[i].fill = ctx2.defaultColor;
   }
   state.charStyles = charStyles;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyCharVibrateSpec(spec, state, ctx) {
-  const { textLength, currentTimeMs } = ctx;
+function applyCharVibrateSpec(spec, state, ctx2) {
+  const { textLength, currentTimeMs } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   const t = currentTimeMs * 1e-3 * spec.frequency * Math.PI * 2;
   for (let i = 0; i < textLength; i++) {
@@ -11501,11 +11497,11 @@ function applyCharVibrateSpec(spec, state, ctx) {
     charStyles[i].offsetY = Math.cos(t * 0.7 + i * 2.718) * spec.amplitude;
   }
   state.charStyles = charStyles;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyCharShimmerSpec(spec, state, ctx) {
-  const { textLength, currentTimeMs } = ctx;
+function applyCharShimmerSpec(spec, state, ctx2) {
+  const { textLength, currentTimeMs } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   const period = (textLength + spec.waveWidth * 2) / Math.max(spec.speed, 0.01) * 1e3;
   const shimmerPos = currentTimeMs % period / period * (textLength + spec.waveWidth * 2) - spec.waveWidth;
@@ -11519,37 +11515,37 @@ function applyCharShimmerSpec(spec, state, ctx) {
     charStyles[i].fill = cachedHsl(hue, spec.saturation, lightness);
   }
   state.charStyles = charStyles;
-  if (spec.entrance && ctx.isEntering)
-    state.opacity = entranceEasing(ctx.elapsed / ctx.inDuration);
+  if (spec.entrance && ctx2.isEntering)
+    state.opacity = entranceEasing(ctx2.elapsed / ctx2.inDuration);
 }
-function applyPresetSpec(spec, state, ctx) {
+function applyPresetSpec(spec, state, ctx2) {
   switch (spec.type) {
     case "loop":
-      applyLoopSpec(spec, state, ctx);
+      applyLoopSpec(spec, state, ctx2);
       break;
     case "charLoop":
-      applyCharLoopSpec(spec, state, ctx);
+      applyCharLoopSpec(spec, state, ctx2);
       break;
     case "charStagger":
-      applyCharStaggerSpec(spec, state, ctx);
+      applyCharStaggerSpec(spec, state, ctx2);
       break;
     case "wordStagger":
-      applyWordStaggerSpec(spec, state, ctx);
+      applyWordStaggerSpec(spec, state, ctx2);
       break;
     case "glitch":
-      applyGlitchSpec(spec, state, ctx);
+      applyGlitchSpec(spec, state, ctx2);
       break;
     case "charColorCycle":
-      applyCharColorCycleSpec(spec, state, ctx);
+      applyCharColorCycleSpec(spec, state, ctx2);
       break;
     case "charShadowLoop":
-      applyCharShadowLoopSpec(spec, state, ctx);
+      applyCharShadowLoopSpec(spec, state, ctx2);
       break;
     case "charVibrate":
-      applyCharVibrateSpec(spec, state, ctx);
+      applyCharVibrateSpec(spec, state, ctx2);
       break;
     case "charShimmer":
-      applyCharShimmerSpec(spec, state, ctx);
+      applyCharShimmerSpec(spec, state, ctx2);
       break;
   }
 }
@@ -11757,28 +11753,28 @@ var EXIT_HANDLERS = {
     state.charStyles = charStyles;
   }
 };
-function handleBlurShimmer(state, ctx) {
+function handleBlurShimmer(state, ctx2) {
   const {
     textLength,
     effectProgress,
     defaultColor,
     defaultColorRgb: { r, g, b }
-  } = ctx;
+  } = ctx2;
   const charStyles = acquireCharStyles(textLength);
   const overlap = ANIMATION_THRESHOLDS.BLUR_SHIMMER_OVERLAP;
   const windowSize = 1 / (textLength * (1 - overlap) + overlap);
-  const alphaEasingFn = ctx.customEasing || entranceEasing;
+  const alphaEasingFn = ctx2.customEasing || entranceEasing;
   const warmR = ANIMATION_SIZES.BLUR_SHIMMER_WARM_R;
   const warmG = ANIMATION_SIZES.BLUR_SHIMMER_WARM_G;
   const warmB = ANIMATION_SIZES.BLUR_SHIMMER_WARM_B;
-  const randomOrder = ctx.staggerDistribution === "random" ? getRandomStaggerOrder(textLength) : void 0;
+  const randomOrder = ctx2.staggerDistribution === "random" ? getRandomStaggerOrder(textLength) : void 0;
   for (let i = 0; i < textLength; i++) {
     const charStart = computeStaggerStart(
       i,
       textLength,
       overlap,
       windowSize,
-      ctx.staggerDistribution,
+      ctx2.staggerDistribution,
       randomOrder
     );
     const raw = (effectProgress - charStart) / windowSize;
@@ -11794,17 +11790,17 @@ function handleBlurShimmer(state, ctx) {
   }
   state.charStyles = charStyles;
 }
-function handleTikTokPage(state, ctx) {
-  const pageConfig = ctx.animation.pageConfig ?? {};
-  let wordTimings = ctx.wordTimings;
+function handleTikTokPage(state, ctx2) {
+  const pageConfig = ctx2.animation.pageConfig ?? {};
+  let wordTimings = ctx2.wordTimings;
   if (!wordTimings?.length) {
-    const words = ctx.captionText.split(/\s+/).filter((w) => w.length > 0);
+    const words = ctx2.captionText.split(/\s+/).filter((w) => w.length > 0);
     if (words.length === 0) {
-      handleKaraoke(state, ctx);
+      handleKaraoke(state, ctx2);
       return;
     }
-    const captionStartMs = ctx.currentTimeMs - ctx.elapsed;
-    const captionDuration = ctx.effectDuration + (ctx.animation.outDuration || 300);
+    const captionStartMs = ctx2.currentTimeMs - ctx2.elapsed;
+    const captionDuration = ctx2.effectDuration + (ctx2.animation.outDuration || 300);
     const wordDuration = captionDuration / words.length;
     let charIdx2 = 0;
     wordTimings = words.map((word, i) => {
@@ -11824,23 +11820,23 @@ function handleTikTokPage(state, ctx) {
     pageConfig.wordsPerPage ?? 4,
     pageConfig.combineWithinMs ?? 1200
   );
-  const activePage = findActivePageAtTime(pages, ctx.currentTimeMs);
+  const activePage = findActivePageAtTime(pages, ctx2.currentTimeMs);
   if (!activePage) {
     let prevPage = null;
     for (let i = 0; i < pages.length; i++) {
-      if (ctx.currentTimeMs > pages[i].endMs && (i + 1 >= pages.length || ctx.currentTimeMs < pages[i + 1].startMs)) {
+      if (ctx2.currentTimeMs > pages[i].endMs && (i + 1 >= pages.length || ctx2.currentTimeMs < pages[i + 1].startMs)) {
         prevPage = pages[i];
         break;
       }
     }
     if (prevPage) {
-      const elapsed = ctx.currentTimeMs - prevPage.endMs;
+      const elapsed = ctx2.currentTimeMs - prevPage.endMs;
       if (elapsed < PAGE_CROSSFADE_MS) {
         state.pageText = prevPage.text;
         state.opacity *= 1 - elapsed / PAGE_CROSSFADE_MS;
         const pg = toGraphemes(prevPage.text);
         const cs = acquireCharStyles(pg.length);
-        for (let i = 0; i < pg.length; i++) cs[i].fill = ctx.defaultColor;
+        for (let i = 0; i < pg.length; i++) cs[i].fill = ctx2.defaultColor;
         state.charStyles = cs;
         return;
       }
@@ -11849,7 +11845,7 @@ function handleTikTokPage(state, ctx) {
     return;
   }
   state.pageText = activePage.text;
-  const pageElapsed = ctx.currentTimeMs - activePage.startMs;
+  const pageElapsed = ctx2.currentTimeMs - activePage.startMs;
   const entranceDuration = pageConfig.pageEntranceDuration ?? 200;
   const entrance = pageConfig.pageEntrance ?? "spring";
   if (pageElapsed >= 0 && pageElapsed < entranceDuration && entrance !== "none") {
@@ -11873,7 +11869,7 @@ function handleTikTokPage(state, ctx) {
       state.translateY += (1 - p) * 12;
     }
   }
-  const pageRemaining = activePage.endMs - ctx.currentTimeMs;
+  const pageRemaining = activePage.endMs - ctx2.currentTimeMs;
   if (pageRemaining >= 0 && pageRemaining < PAGE_CROSSFADE_MS) {
     state.opacity *= pageRemaining / PAGE_CROSSFADE_MS;
   }
@@ -11882,7 +11878,7 @@ function handleTikTokPage(state, ctx) {
   const charStyles = acquireCharStyles(pageGraphemes.length);
   const highlightedWordIdx = getHighlightedWordIndex(
     activePage,
-    ctx.currentTimeMs
+    ctx2.currentTimeMs
   );
   let charIdx = 0;
   let activeWordStartCharIdx = -1;
@@ -11894,25 +11890,25 @@ function handleTikTokPage(state, ctx) {
     const wordStartCharIdx = charIdx;
     let fillColor;
     if (isActive) {
-      const elapsed = ctx.currentTimeMs - word.startMs;
+      const elapsed = ctx2.currentTimeMs - word.startMs;
       fillColor = elapsed < HIGHLIGHT_TRANSITION_MS ? lerpHexColor(
-        ctx.defaultColor,
+        ctx2.defaultColor,
         highlightColor,
         elapsed / HIGHLIGHT_TRANSITION_MS
       ) : highlightColor;
     } else if (wi === highlightedWordIdx - 1) {
-      const elapsed = ctx.currentTimeMs - word.endMs;
+      const elapsed = ctx2.currentTimeMs - word.endMs;
       fillColor = elapsed >= 0 && elapsed < HIGHLIGHT_TRANSITION_MS ? lerpHexColor(
         highlightColor,
-        ctx.defaultColor,
+        ctx2.defaultColor,
         elapsed / HIGHLIGHT_TRANSITION_MS
-      ) : ctx.defaultColor;
+      ) : ctx2.defaultColor;
     } else {
-      fillColor = ctx.defaultColor;
+      fillColor = ctx2.defaultColor;
     }
     for (let j = 0; j < wordGraphemes.length && charIdx < pageGraphemes.length; j++, charIdx++) {
       const isSpace = wordGraphemes[j].trim() === "";
-      charStyles[charIdx].fill = isSpace ? ctx.defaultColor : fillColor;
+      charStyles[charIdx].fill = isSpace ? ctx2.defaultColor : fillColor;
     }
     if (isActive) {
       activeWordStartCharIdx = wordStartCharIdx;
@@ -11920,12 +11916,12 @@ function handleTikTokPage(state, ctx) {
     }
   }
   while (charIdx < pageGraphemes.length) {
-    charStyles[charIdx].fill = ctx.defaultColor;
+    charStyles[charIdx].fill = ctx2.defaultColor;
     charIdx++;
   }
   if (highlightedWordIdx >= 0 && highlightedWordIdx < activePage.words.length) {
     const activeWord = activePage.words[highlightedWordIdx];
-    const wordElapsed = ctx.currentTimeMs - activeWord.startMs;
+    const wordElapsed = ctx2.currentTimeMs - activeWord.startMs;
     if (wordElapsed >= 0 && wordElapsed < WORD_BOUNCE_DURATION_MS) {
       const t = wordElapsed / WORD_BOUNCE_DURATION_MS;
       const elastic = easeOutElastic2(t, 1, 0.4);
@@ -11981,7 +11977,7 @@ function calculateCaptionAnimationState(currentTimeMs, captionStartMs, captionEn
       );
   }
   const customEasing = animation.easing ? resolveEasing(animation.easing) : void 0;
-  const ctx = {
+  const ctx2 = {
     textLength,
     effectProgress,
     elapsed,
@@ -12010,8 +12006,8 @@ function calculateCaptionAnimationState(currentTimeMs, captionStartMs, captionEn
       const h = PRE_OUT_HANDLERS[inType];
       if (h && h !== ph) ih = h;
     }
-    if (ph) ph(state, ctx);
-    if (ih) ih(state, ctx);
+    if (ph) ph(state, ctx2);
+    if (ih) ih(state, ctx2);
   }
   if (isExiting && outType !== "none") {
     const handler = EXIT_HANDLERS[outType];
@@ -12032,7 +12028,7 @@ function calculateCaptionAnimationState(currentTimeMs, captionStartMs, captionEn
       if (!key || key === "none" || key === prevKey) continue;
       prevKey = key;
       const spec = PRESET_SPECS[key];
-      if (spec) applyPresetSpec(spec, state, ctx);
+      if (spec) applyPresetSpec(spec, state, ctx2);
     }
   }
   return state;
@@ -12093,88 +12089,88 @@ function batchCharactersByStyle(line, lineStartX, charStyles, globalCharIndexSta
   }
   return batches;
 }
-function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize, fontStyleStr, fontFamily, charSpacingPx = 0, fallbackStrokeColor, fallbackStrokeWidth, fallbackShadowColor, fallbackShadowBlur, fallbackShadowOffsetX, fallbackShadowOffsetY) {
+function renderCharBatches(ctx2, batches, y, defaultColor, baseFontSpec, fontSize, fontStyleStr, fontFamily, charSpacingPx = 0, fallbackStrokeColor, fallbackStrokeWidth, fallbackShadowColor, fallbackShadowBlur, fallbackShadowOffsetX, fallbackShadowOffsetY) {
   let lastFillStyle = "";
   let lastStrokeStyle = "";
   let lastLineWidth = -1;
   let lastFont = baseFontSpec;
-  ctx.textAlign = "left";
-  ctx.lineJoin = "miter";
-  ctx.lineCap = "butt";
-  ctx.miterLimit = 4;
+  ctx2.textAlign = "left";
+  ctx2.lineJoin = "miter";
+  ctx2.lineCap = "butt";
+  ctx2.miterLimit = 4;
   const hasFallbackShadow = !!(fallbackShadowBlur && fallbackShadowBlur > 0 && fallbackShadowColor);
   function applyStroke(stroke, strokeWidth, text, x, ty) {
     if (stroke !== lastStrokeStyle) {
-      ctx.strokeStyle = stroke;
+      ctx2.strokeStyle = stroke;
       lastStrokeStyle = stroke;
     }
     if (strokeWidth !== lastLineWidth) {
-      ctx.lineWidth = strokeWidth;
+      ctx2.lineWidth = strokeWidth;
       lastLineWidth = strokeWidth;
     }
-    ctx.strokeText(text, x, ty);
+    ctx2.strokeText(text, x, ty);
   }
   function applyFallbackShadow() {
-    ctx.shadowBlur = fallbackShadowBlur;
-    ctx.shadowColor = fallbackShadowColor;
-    ctx.shadowOffsetX = fallbackShadowOffsetX ?? 0;
-    ctx.shadowOffsetY = fallbackShadowOffsetY ?? 0;
+    ctx2.shadowBlur = fallbackShadowBlur;
+    ctx2.shadowColor = fallbackShadowColor;
+    ctx2.shadowOffsetX = fallbackShadowOffsetX ?? 0;
+    ctx2.shadowOffsetY = fallbackShadowOffsetY ?? 0;
   }
   function clearShadow() {
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = "rgba(0,0,0,0)";
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
+    ctx2.shadowBlur = 0;
+    ctx2.shadowColor = "rgba(0,0,0,0)";
+    ctx2.shadowOffsetX = 0;
+    ctx2.shadowOffsetY = 0;
   }
   for (const batch of batches) {
     if (batch.hidden) continue;
     const { text, startX, style } = batch;
     const fillColor = style.fill || defaultColor;
     if (fillColor !== lastFillStyle) {
-      ctx.fillStyle = fillColor;
+      ctx2.fillStyle = fillColor;
       lastFillStyle = fillColor;
     }
     const needBoldFont = style.fontWeight && style.fontWeight !== "normal";
     if (needBoldFont) {
       const boldFont = `${fontStyleStr} ${style.fontWeight} ${fontSize}px "${fontFamily}"`;
       if (boldFont !== lastFont) {
-        ctx.font = boldFont;
+        ctx2.font = boldFont;
         lastFont = boldFont;
       }
     } else if (lastFont !== baseFontSpec) {
-      ctx.font = baseFontSpec;
+      ctx2.font = baseFontSpec;
       lastFont = baseFontSpec;
     }
     if (batch.hasTransform) {
-      ctx.save();
+      ctx2.save();
       const cx = startX + batch.width / 2;
-      ctx.translate(cx + (style.offsetX || 0), y + (style.offsetY || 0));
-      if (style.charOpacity !== void 0 && style.charOpacity !== 1) ctx.globalAlpha *= style.charOpacity;
-      if (style.charRotation !== void 0 && style.charRotation !== 0) ctx.rotate(style.charRotation * Math.PI / 180);
-      if (style.charSkewX !== void 0 && style.charSkewX !== 0) ctx.transform(1, 0, Math.tan(style.charSkewX * Math.PI / 180), 1, 0, 0);
-      if (style.charBlur !== void 0 && style.charBlur > 0) ctx.filter = `blur(${style.charBlur}px)`;
+      ctx2.translate(cx + (style.offsetX || 0), y + (style.offsetY || 0));
+      if (style.charOpacity !== void 0 && style.charOpacity !== 1) ctx2.globalAlpha *= style.charOpacity;
+      if (style.charRotation !== void 0 && style.charRotation !== 0) ctx2.rotate(style.charRotation * Math.PI / 180);
+      if (style.charSkewX !== void 0 && style.charSkewX !== 0) ctx2.transform(1, 0, Math.tan(style.charSkewX * Math.PI / 180), 1, 0, 0);
+      if (style.charBlur !== void 0 && style.charBlur > 0) ctx2.filter = `blur(${style.charBlur}px)`;
       if (style.charShadowBlur !== void 0 && style.charShadowBlur > 0) {
-        ctx.shadowBlur = style.charShadowBlur;
-        ctx.shadowColor = style.charShadowColor || fillColor;
+        ctx2.shadowBlur = style.charShadowBlur;
+        ctx2.shadowColor = style.charShadowColor || fillColor;
       } else if (hasFallbackShadow) {
         applyFallbackShadow();
       }
-      if (style.charScaleX !== void 0 || style.charScaleY !== void 0) ctx.scale(style.charScaleX ?? 1, style.charScaleY ?? 1);
+      if (style.charScaleX !== void 0 || style.charScaleY !== void 0) ctx2.scale(style.charScaleX ?? 1, style.charScaleY ?? 1);
       if (style.sweepGradientProgress != null && style.sweepGradientProgress > 0 && style.sweepGradientProgress < 1) {
         const hw = batch.width / 2;
-        const grad = ctx.createLinearGradient(-hw, 0, hw, 0);
+        const grad = ctx2.createLinearGradient(-hw, 0, hw, 0);
         const p = style.sweepGradientProgress;
         grad.addColorStop(0, fillColor);
         grad.addColorStop(Math.min(1, p), fillColor);
         grad.addColorStop(Math.min(1, p + 0.02), defaultColor);
         grad.addColorStop(1, defaultColor);
-        ctx.fillStyle = grad;
+        ctx2.fillStyle = grad;
       }
       const strokeC = style.stroke ?? fallbackStrokeColor;
       const strokeW = style.strokeWidth ?? fallbackStrokeWidth;
       if (strokeC && strokeW) applyStroke(strokeC, strokeW, text, -batch.width / 2, 0);
-      ctx.fillText(text, -batch.width / 2, 0);
-      ctx.restore();
+      ctx2.fillText(text, -batch.width / 2, 0);
+      ctx2.restore();
       continue;
     }
     if (charSpacingPx > 0 && text.length > 1) {
@@ -12184,16 +12180,16 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
         const strokeW = style.strokeWidth ?? fallbackStrokeWidth;
         if (hasFallbackShadow) applyFallbackShadow();
         if (strokeC && strokeW) applyStroke(strokeC, strokeW, ch, cx, y);
-        ctx.fillText(ch, cx, y);
+        ctx2.fillText(ch, cx, y);
         if (hasFallbackShadow) clearShadow();
-        cx += ctx.measureText(ch).width + charSpacingPx;
+        cx += ctx2.measureText(ch).width + charSpacingPx;
       }
     } else {
       const strokeC = style.stroke ?? fallbackStrokeColor;
       const strokeW = style.strokeWidth ?? fallbackStrokeWidth;
       if (hasFallbackShadow) applyFallbackShadow();
       if (strokeC && strokeW) applyStroke(strokeC, strokeW, text, startX, y);
-      ctx.fillText(text, startX, y);
+      ctx2.fillText(text, startX, y);
       if (hasFallbackShadow) clearShadow();
     }
     if (style.underline) {
@@ -12201,26 +12197,26 @@ function renderCharBatches(ctx, batches, y, defaultColor, baseFontSpec, fontSize
       const underlineColor = style.fill || defaultColor;
       const underlineWidth = Math.max(1, Math.round(fontSize / 16));
       if (underlineColor !== lastStrokeStyle) {
-        ctx.strokeStyle = underlineColor;
+        ctx2.strokeStyle = underlineColor;
         lastStrokeStyle = underlineColor;
       }
       if (underlineWidth !== lastLineWidth) {
-        ctx.lineWidth = underlineWidth;
+        ctx2.lineWidth = underlineWidth;
         lastLineWidth = underlineWidth;
       }
-      ctx.beginPath();
-      ctx.moveTo(startX, underlineY);
-      ctx.lineTo(startX + batch.width, underlineY);
-      ctx.stroke();
+      ctx2.beginPath();
+      ctx2.moveTo(startX, underlineY);
+      ctx2.lineTo(startX + batch.width, underlineY);
+      ctx2.stroke();
     }
   }
   if (lastFont !== baseFontSpec) {
-    ctx.font = baseFontSpec;
+    ctx2.font = baseFontSpec;
   }
 }
 
 // ../../shared/caption-animation/captionRenderer.ts
-function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animState, deps, scaleX = 1, scaleY = 1) {
+function renderCaptionText(ctx2, text, canvasWidth, canvasHeight, style, animState, deps, scaleX = 1, scaleY = 1) {
   if (animState.opacity <= 0) return;
   const renderText = animState.pageText ?? text;
   const fontSizeBase = style?.fontSize ?? 35;
@@ -12239,12 +12235,12 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
   const linethrough = stylesArr.includes("linethrough") || stylesArr.includes("strike") || stylesArr.includes("strikethrough");
   const fontWeightStr = isBold ? "bold" : (style?.fontWeight ?? 700).toString();
   const fontStyleStr = isItalic ? "italic" : "normal";
-  ctx.save();
-  ctx.globalAlpha = animState.opacity;
-  ctx.globalCompositeOperation = "source-over";
+  ctx2.save();
+  ctx2.globalAlpha = animState.opacity;
+  ctx2.globalCompositeOperation = "source-over";
   try {
-    ctx.fontKerning = "normal";
-    ctx.textRendering = "optimizeLegibility";
+    ctx2.fontKerning = "normal";
+    ctx2.textRendering = "optimizeLegibility";
   } catch {
   }
   const padding = (style?.padding ?? 5) * scaleX;
@@ -12266,7 +12262,7 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
     let hi = maxFontSize;
     while (hi - lo > 1) {
       const mid = (lo + hi) / 2;
-      ctx.font = `${fontStyleStr} ${fontWeightStr} ${mid}px "${fontFamily}"`;
+      ctx2.font = `${fontStyleStr} ${fontWeightStr} ${mid}px "${fontFamily}"`;
       const w = deps.measureLineWidth(renderText);
       if (w <= availableTextWidth) {
         lo = mid;
@@ -12277,7 +12273,7 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
     fontSize = Math.floor(lo);
   }
   const baseFontSpec = `${fontStyleStr} ${fontWeightStr} ${fontSize}px "${fontFamily}"`;
-  ctx.font = baseFontSpec;
+  ctx2.font = baseFontSpec;
   const captionCharSpacingPx = charSpacingToPx(style?.charSpacing ?? 0, fontSize);
   const lines = deps.wrapText(renderText, availableTextWidth);
   const lineWidths = lines.map(deps.measureLineWidth);
@@ -12315,60 +12311,60 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
   left += animState.translateX;
   top += animState.translateY;
   if (animState.blurAmount > 0) {
-    ctx.filter = `blur(${animState.blurAmount}px)`;
+    ctx2.filter = `blur(${animState.blurAmount}px)`;
   }
   if (animState.rotation !== 0) {
     const cx = left + targetWidth / 2;
     const cy = top + bgHeight / 2;
-    ctx.translate(cx, cy);
-    ctx.rotate(animState.rotation * Math.PI / 180);
-    ctx.translate(-cx, -cy);
+    ctx2.translate(cx, cy);
+    ctx2.rotate(animState.rotation * Math.PI / 180);
+    ctx2.translate(-cx, -cy);
   }
   if (style?.backgroundColor && style.backgroundColor !== "transparent") {
-    ctx.save();
-    ctx.fillStyle = style.backgroundColor;
+    ctx2.save();
+    ctx2.fillStyle = style.backgroundColor;
     const radius = Math.max(0, (style?.borderRadius ?? 10) * scaleX);
-    deps.drawRoundedRect(ctx, left, top, targetWidth, bgHeight, radius, radius, style.backgroundColor);
-    ctx.restore();
+    deps.drawRoundedRect(ctx2, left, top, targetWidth, bgHeight, radius, radius, style.backgroundColor);
+    ctx2.restore();
   }
   const hasLegacyShadow = !style?.shadowLayers?.length && (!!style?.shadowColor || style?.shadowBlur !== void 0 || style?.shadowOffsetX !== void 0 || style?.shadowOffsetY !== void 0);
   if (hasLegacyShadow) {
-    ctx.shadowColor = style.shadowColor || "#000000";
-    ctx.shadowBlur = (style.shadowBlur ?? 0) * scaleX;
-    ctx.shadowOffsetX = (style.shadowOffsetX ?? 0) * scaleX;
-    ctx.shadowOffsetY = (style.shadowOffsetY ?? 0) * scaleY;
+    ctx2.shadowColor = style.shadowColor || "#000000";
+    ctx2.shadowBlur = (style.shadowBlur ?? 0) * scaleX;
+    ctx2.shadowOffsetX = (style.shadowOffsetX ?? 0) * scaleX;
+    ctx2.shadowOffsetY = (style.shadowOffsetY ?? 0) * scaleY;
   } else {
-    ctx.shadowColor = "rgba(0,0,0,0)";
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
+    ctx2.shadowColor = "rgba(0,0,0,0)";
+    ctx2.shadowBlur = 0;
+    ctx2.shadowOffsetX = 0;
+    ctx2.shadowOffsetY = 0;
   }
-  ctx.textBaseline = "alphabetic";
+  ctx2.textBaseline = "alphabetic";
   if (style?.useGradient && style.gradientColors && style.gradientColors.length >= 2) {
     const maxLineW = Math.max(...lineWidths, 1);
-    ctx.fillStyle = createTextGradient(ctx, style.gradientColors, maxLineW);
+    ctx2.fillStyle = createTextGradient(ctx2, style.gradientColors, maxLineW);
   } else {
-    ctx.fillStyle = defaultColor;
+    ctx2.fillStyle = defaultColor;
   }
-  ctx.textAlign = textAlign;
+  ctx2.textAlign = textAlign;
   const textX = textAlign === "left" ? left + padding : textAlign === "right" ? left + targetWidth - padding : left + targetWidth / 2;
   const baseStrokeWidth = (style?.strokeWidth ?? 0) * scaleX;
   const baseStrokeColor = style?.strokeColor;
   const doStroke = baseStrokeWidth > 0 && baseStrokeColor;
   if (doStroke) {
-    ctx.lineWidth = baseStrokeWidth;
-    ctx.strokeStyle = baseStrokeColor;
-    ctx.lineJoin = "miter";
-    ctx.lineCap = "butt";
-    ctx.miterLimit = 4;
+    ctx2.lineWidth = baseStrokeWidth;
+    ctx2.strokeStyle = baseStrokeColor;
+    ctx2.lineJoin = "miter";
+    ctx2.lineCap = "butt";
+    ctx2.miterLimit = 4;
   }
   const metrics = deps.measureTextMetrics();
   const textHeight = metrics.ascent + metrics.descent;
   const verticalOffsetInLine = Math.max(0, (lineHeightPx - textHeight) / 2);
   const baseY = top + padding + verticalOffsetInLine + metrics.ascent;
   if (animState.wordHighlightBoxes && animState.wordHighlightBoxes.length > 0) {
-    ctx.save();
-    disableShadow(ctx);
+    ctx2.save();
+    disableShadow(ctx2);
     for (const box of animState.wordHighlightBoxes) {
       if (box.opacity <= 0) continue;
       let currentCharIdx = 0;
@@ -12392,14 +12388,14 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
           const boxY = baseY + lineIdx * lineHeightPx - metrics.ascent - boxPadY;
           const boxH = fontSize + boxPadY * 2;
           const radius = Math.min(fontSize * 0.2, 8 * scaleX);
-          ctx.globalAlpha = animState.opacity * box.opacity;
-          deps.drawRoundedRect(ctx, bx - boxPadX, boxY, bw + boxPadX * 2, boxH, radius, radius, box.color);
+          ctx2.globalAlpha = animState.opacity * box.opacity;
+          deps.drawRoundedRect(ctx2, bx - boxPadX, boxY, bw + boxPadX * 2, boxH, radius, radius, box.color);
         }
         currentCharIdx = lineEndIdx;
       }
     }
-    ctx.restore();
-    ctx.globalAlpha = animState.opacity;
+    ctx2.restore();
+    ctx2.globalAlpha = animState.opacity;
   }
   const needCharByChar = animState.isTypewriter || animState.charStyles !== void 0;
   const shadowLayers = style?.shadowLayers;
@@ -12408,29 +12404,29 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
     let ys = baseY;
     for (let i = 0; i < lines.length; i++) {
       const fx = textAlign === "center" ? textX : Math.round(textX);
-      ctx.textAlign = textAlign;
+      ctx2.textAlign = textAlign;
       if (doStroke) {
-        if (captionCharSpacingPx > 0) strokeTextWithSpacing(ctx, lines[i], fx, Math.round(ys), textAlign, captionCharSpacingPx);
-        else ctx.strokeText(lines[i], fx, Math.round(ys));
+        if (captionCharSpacingPx > 0) strokeTextWithSpacing(ctx2, lines[i], fx, Math.round(ys), textAlign, captionCharSpacingPx);
+        else ctx2.strokeText(lines[i], fx, Math.round(ys));
       }
-      if (captionCharSpacingPx > 0) fillTextWithSpacing(ctx, lines[i], fx, ys, textAlign, captionCharSpacingPx);
-      else ctx.fillText(lines[i], fx, ys);
+      if (captionCharSpacingPx > 0) fillTextWithSpacing(ctx2, lines[i], fx, ys, textAlign, captionCharSpacingPx);
+      else ctx2.fillText(lines[i], fx, ys);
       ys += lineHeightPx;
     }
   };
   if (hasMultiLayerShadow) {
     for (const layer of shadowLayers) {
-      ctx.shadowColor = layer.color;
-      ctx.shadowBlur = layer.blur * scaleX;
-      ctx.shadowOffsetX = layer.offsetX * scaleX;
-      ctx.shadowOffsetY = layer.offsetY * scaleY;
+      ctx2.shadowColor = layer.color;
+      ctx2.shadowBlur = layer.blur * scaleX;
+      ctx2.shadowOffsetX = layer.offsetX * scaleX;
+      ctx2.shadowOffsetY = layer.offsetY * scaleY;
       drawAllLinesStrokeFill();
     }
-    disableShadow(ctx);
+    disableShadow(ctx2);
   }
   if (needCharByChar) {
-    const charRenderShadowState = captureShadow(ctx);
-    disableShadow(ctx);
+    const charRenderShadowState = captureShadow(ctx2);
+    disableShadow(ctx2);
     let y = baseY;
     let globalCharIndex = 0;
     for (let i = 0; i < lines.length; i++) {
@@ -12453,7 +12449,7 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
         animState.typewriterFractionalChar
       );
       renderCharBatches(
-        ctx,
+        ctx2,
         batches,
         y,
         defaultColor,
@@ -12478,28 +12474,28 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
       globalCharIndex += lineGraphemeCount;
       y += lineHeightPx;
     }
-    restoreShadow(ctx, charRenderShadowState);
+    restoreShadow(ctx2, charRenderShadowState);
   } else if (!hasMultiLayerShadow) {
     if (doStroke && !animState.isNeon && !animState.isKaraoke) {
-      ctx.textAlign = textAlign;
+      ctx2.textAlign = textAlign;
       let yStroke = baseY;
       for (let i = 0; i < lines.length; i++) {
         const fy = Math.round(yStroke);
         const fx = textAlign === "center" ? textX : Math.round(textX);
-        if (captionCharSpacingPx > 0) strokeTextWithSpacing(ctx, lines[i], fx, fy, textAlign, captionCharSpacingPx);
-        else ctx.strokeText(lines[i], fx, fy);
+        if (captionCharSpacingPx > 0) strokeTextWithSpacing(ctx2, lines[i], fx, fy, textAlign, captionCharSpacingPx);
+        else ctx2.strokeText(lines[i], fx, fy);
         yStroke += lineHeightPx;
       }
     }
     if (hasLegacyShadow) {
-      disableShadow(ctx);
+      disableShadow(ctx2);
     }
     let y = baseY;
     for (let i = 0; i < lines.length; i++) {
       const fx = textAlign === "center" ? textX : Math.round(textX);
-      ctx.textAlign = textAlign;
-      if (captionCharSpacingPx > 0) fillTextWithSpacing(ctx, lines[i], fx, y, textAlign, captionCharSpacingPx);
-      else ctx.fillText(lines[i], fx, y);
+      ctx2.textAlign = textAlign;
+      if (captionCharSpacingPx > 0) fillTextWithSpacing(ctx2, lines[i], fx, y, textAlign, captionCharSpacingPx);
+      else ctx2.fillText(lines[i], fx, y);
       y += lineHeightPx;
     }
   } else {
@@ -12508,8 +12504,8 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
   const hadShadow = hasLegacyShadow || (style?.shadowLayers?.length ?? 0) > 0;
   let savedShadowState;
   if (hadShadow) {
-    savedShadowState = captureShadow(ctx);
-    disableShadow(ctx);
+    savedShadowState = captureShadow(ctx2);
+    disableShadow(ctx2);
   }
   let yDecor = baseY;
   for (let i = 0; i < lines.length; i++) {
@@ -12523,32 +12519,32 @@ function renderCaptionText(ctx, text, canvasWidth, canvasHeight, style, animStat
       startX = left + targetWidth / 2 - w / 2;
     }
     const lineW = Math.max(1, Math.round(fontSize / 16));
-    ctx.lineWidth = lineW;
-    ctx.strokeStyle = defaultColor;
+    ctx2.lineWidth = lineW;
+    ctx2.strokeStyle = defaultColor;
     if (underline && !animState.isKaraoke) {
       const underlineY = Math.round(yDecor + Math.max(1, fontSize * 0.1));
-      ctx.beginPath();
-      ctx.moveTo(startX, underlineY);
-      ctx.lineTo(startX + w, underlineY);
-      ctx.stroke();
+      ctx2.beginPath();
+      ctx2.moveTo(startX, underlineY);
+      ctx2.lineTo(startX + w, underlineY);
+      ctx2.stroke();
     }
     if (linethrough) {
       const throughY = Math.round(yDecor - Math.max(1, fontSize * 0.3));
-      ctx.beginPath();
-      ctx.moveTo(startX, throughY);
-      ctx.lineTo(startX + w, throughY);
-      ctx.stroke();
+      ctx2.beginPath();
+      ctx2.moveTo(startX, throughY);
+      ctx2.lineTo(startX + w, throughY);
+      ctx2.stroke();
     }
     yDecor += lineHeightPx;
   }
   if (hadShadow && savedShadowState) {
-    restoreShadow(ctx, savedShadowState);
+    restoreShadow(ctx2, savedShadowState);
   }
-  ctx.restore();
+  ctx2.restore();
 }
 
 // ../../server/src/renderer/captionTextRenderer.ts
-function renderCaptionTextServer(ctx, text, canvasWidth, canvasHeight, style, animState, fns, scaleX = 1, scaleY = 1) {
+function renderCaptionTextServer(ctx2, text, canvasWidth, canvasHeight, style, animState, fns, scaleX = 1, scaleY = 1) {
   const fontSizeBase = style?.fontSize ?? 35;
   const styleScaleY = style?.scaleY ?? 1;
   const fontSize = fontSizeBase * styleScaleY * animState.scaleY * scaleY;
@@ -12560,14 +12556,14 @@ function renderCaptionTextServer(ctx, text, canvasWidth, canvasHeight, style, an
   const fontStyleStr = isItalic ? "italic" : "normal";
   const baseFontSpec = `${fontStyleStr} ${fontWeightStr} ${fontSize}px "${style?.fontFamily ?? "Arial"}"`;
   const deps = {
-    wrapText: (t, maxWidth) => fns.wrapText(ctx, t, maxWidth, captionCharSpacingPx),
-    measureLineWidth: (line) => fns.measureLineWidth(ctx, line, captionCharSpacingPx),
-    getCharWidth: (char) => fns.getCharWidth(ctx, baseFontSpec, char),
-    measureTextMetrics: () => fns.measureTextMetrics(ctx, fontSize),
+    wrapText: (t, maxWidth) => fns.wrapText(ctx2, t, maxWidth, captionCharSpacingPx),
+    measureLineWidth: (line) => fns.measureLineWidth(ctx2, line, captionCharSpacingPx),
+    getCharWidth: (char) => fns.getCharWidth(ctx2, baseFontSpec, char),
+    measureTextMetrics: () => fns.measureTextMetrics(ctx2, fontSize),
     drawRoundedRect
   };
   renderCaptionText(
-    ctx,
+    ctx2,
     text,
     canvasWidth,
     canvasHeight,
@@ -12878,22 +12874,22 @@ var CHAR_TRANSFORMS = {
 function isIdentityTransform(t) {
   return Math.abs(t.offsetX) < 1e-6 && Math.abs(t.offsetY) < 1e-6 && Math.abs(t.rotation) < 1e-6 && Math.abs(t.scaleX - 1) < 1e-6 && Math.abs(t.scaleY - 1) < 1e-6 && Math.abs(t.alpha - 1) < 1e-6 && (!t.blur || t.blur < 0.1);
 }
-function strokeTextNoShadow(ctx, text, x, y, strokeColor, strokeWidth) {
+function strokeTextNoShadow(ctx2, text, x, y, strokeColor, strokeWidth) {
   if (!(strokeWidth > 0 && strokeColor)) return;
-  ctx.lineWidth = strokeWidth;
-  ctx.lineJoin = "miter";
-  ctx.lineCap = "butt";
-  ctx.miterLimit = 4;
-  ctx.strokeStyle = strokeColor;
-  ctx.strokeText(text, x, y);
+  ctx2.lineWidth = strokeWidth;
+  ctx2.lineJoin = "miter";
+  ctx2.lineCap = "butt";
+  ctx2.miterLimit = 4;
+  ctx2.strokeStyle = strokeColor;
+  ctx2.strokeText(text, x, y);
 }
-function renderCharAnimation(ctx, wrappedLines, lineXs, lineYs, lineWs, textAlign, animationProgress, isOut, getTransform, fontSpec, textColor, strokeColor, strokeWidth, spacingPx, charWidthCache, hasShadow = false) {
+function renderCharAnimation(ctx2, wrappedLines, lineXs, lineYs, lineWs, textAlign, animationProgress, isOut, getTransform, fontSpec, textColor, strokeColor, strokeWidth, spacingPx, charWidthCache, hasShadow = false) {
   const lineGraphemes = wrappedLines.map((l) => toGraphemes(l));
   const totalChars = lineGraphemes.reduce((sum, g) => sum + g.length, 0);
   if (totalChars === 0) return;
-  ctx.save();
-  ctx.font = fontSpec;
-  const savedAlpha = ctx.globalAlpha;
+  ctx2.save();
+  ctx2.font = fontSpec;
+  const savedAlpha = ctx2.globalAlpha;
   let charCount = 0;
   for (let i = 0; i < wrappedLines.length; i++) {
     const graphemes = lineGraphemes[i];
@@ -12908,7 +12904,7 @@ function renderCharAnimation(ctx, wrappedLines, lineXs, lineYs, lineWs, textAlig
       if (cwCached !== void 0) {
         charWidths[j2] = cwCached;
       } else {
-        charWidths[j2] = ctx.measureText(graphemes[j2]).width;
+        charWidths[j2] = ctx2.measureText(graphemes[j2]).width;
         charWidthCache?.set(cwKey, charWidths[j2]);
       }
       accX += charWidths[j2] + spacingPx;
@@ -12952,7 +12948,7 @@ function renderCharAnimation(ctx, wrappedLines, lineXs, lineYs, lineWs, textAlig
             batchEnd++;
           }
           renderBatchChars(
-            ctx,
+            ctx2,
             graphemes,
             j,
             batchEnd,
@@ -12972,7 +12968,7 @@ function renderCharAnimation(ctx, wrappedLines, lineXs, lineYs, lineWs, textAlig
           continue;
         }
         renderSingleChar(
-          ctx,
+          ctx2,
           graphemes[j],
           lineBaseX + prefixX[j],
           charWidths[j],
@@ -12990,13 +12986,13 @@ function renderCharAnimation(ctx, wrappedLines, lineXs, lineYs, lineWs, textAlig
     }
     charCount += graphemes.length;
   }
-  ctx.globalAlpha = savedAlpha;
-  ctx.restore();
+  ctx2.globalAlpha = savedAlpha;
+  ctx2.restore();
 }
-function renderTextCharAnimations(ctx, wrappedLines, lineXs, lineYs, lineWs, textAlign, fontSpec, textColor, strokeColor, strokeWidth, charSpacingPx, animations, hasShadow, charWidthCache) {
+function renderTextCharAnimations(ctx2, wrappedLines, lineXs, lineYs, lineWs, textAlign, fontSpec, textColor, strokeColor, strokeWidth, charSpacingPx, animations, hasShadow, charWidthCache) {
   for (const anim of animations) {
     renderCharAnimation(
-      ctx,
+      ctx2,
       wrappedLines,
       lineXs,
       lineYs,
@@ -13015,99 +13011,99 @@ function renderTextCharAnimations(ctx, wrappedLines, lineXs, lineYs, lineWs, tex
     );
   }
 }
-function renderBatchChars(ctx, graphemes, start, end, lineBaseX, lineY, prefixX, charWidths, savedAlpha, fontSpec, textColor, strokeColor, strokeWidth, spacingPx, hasShadow) {
+function renderBatchChars(ctx2, graphemes, start, end, lineBaseX, lineY, prefixX, charWidths, savedAlpha, fontSpec, textColor, strokeColor, strokeWidth, spacingPx, hasShadow) {
   const batchLen = end - start;
-  ctx.save();
-  ctx.globalAlpha = savedAlpha;
-  ctx.font = fontSpec;
-  ctx.textBaseline = "alphabetic";
+  ctx2.save();
+  ctx2.globalAlpha = savedAlpha;
+  ctx2.font = fontSpec;
+  ctx2.textBaseline = "alphabetic";
   const hasStroke = strokeWidth > 0 && !!strokeColor;
   if (spacingPx > 0 || batchLen === 1) {
-    ctx.textAlign = "center";
+    ctx2.textAlign = "center";
     if (hasShadow && hasStroke) {
       for (let k = start; k < end; k++) {
         const cx = lineBaseX + prefixX[k] + charWidths[k] / 2;
-        strokeTextNoShadow(ctx, graphemes[k], cx, lineY, strokeColor, strokeWidth);
+        strokeTextNoShadow(ctx2, graphemes[k], cx, lineY, strokeColor, strokeWidth);
       }
-      disableShadow(ctx);
-      ctx.fillStyle = textColor;
+      disableShadow(ctx2);
+      ctx2.fillStyle = textColor;
       for (let k = start; k < end; k++) {
         const cx = lineBaseX + prefixX[k] + charWidths[k] / 2;
-        ctx.fillText(graphemes[k], cx, lineY);
+        ctx2.fillText(graphemes[k], cx, lineY);
       }
       for (let k = start; k < end; k++) {
         const cx = lineBaseX + prefixX[k] + charWidths[k] / 2;
-        strokeTextNoShadow(ctx, graphemes[k], cx, lineY, strokeColor, strokeWidth);
+        strokeTextNoShadow(ctx2, graphemes[k], cx, lineY, strokeColor, strokeWidth);
       }
     } else {
-      ctx.fillStyle = textColor;
+      ctx2.fillStyle = textColor;
       for (let k = start; k < end; k++) {
         const cx = lineBaseX + prefixX[k] + charWidths[k] / 2;
-        ctx.fillText(graphemes[k], cx, lineY);
+        ctx2.fillText(graphemes[k], cx, lineY);
       }
-      disableShadow(ctx);
+      disableShadow(ctx2);
       if (hasStroke) {
         for (let k = start; k < end; k++) {
           const cx = lineBaseX + prefixX[k] + charWidths[k] / 2;
-          strokeTextNoShadow(ctx, graphemes[k], cx, lineY, strokeColor, strokeWidth);
+          strokeTextNoShadow(ctx2, graphemes[k], cx, lineY, strokeColor, strokeWidth);
         }
       }
     }
   } else {
     const batchText = graphemes.slice(start, end).join("");
     const batchX = lineBaseX + prefixX[start];
-    ctx.textAlign = "left";
+    ctx2.textAlign = "left";
     if (hasShadow && hasStroke) {
-      strokeTextNoShadow(ctx, batchText, batchX, lineY, strokeColor, strokeWidth);
-      disableShadow(ctx);
-      ctx.fillStyle = textColor;
-      ctx.fillText(batchText, batchX, lineY);
-      strokeTextNoShadow(ctx, batchText, batchX, lineY, strokeColor, strokeWidth);
+      strokeTextNoShadow(ctx2, batchText, batchX, lineY, strokeColor, strokeWidth);
+      disableShadow(ctx2);
+      ctx2.fillStyle = textColor;
+      ctx2.fillText(batchText, batchX, lineY);
+      strokeTextNoShadow(ctx2, batchText, batchX, lineY, strokeColor, strokeWidth);
     } else {
-      ctx.fillStyle = textColor;
-      ctx.fillText(batchText, batchX, lineY);
-      disableShadow(ctx);
+      ctx2.fillStyle = textColor;
+      ctx2.fillText(batchText, batchX, lineY);
+      disableShadow(ctx2);
       if (hasStroke) {
-        strokeTextNoShadow(ctx, batchText, batchX, lineY, strokeColor, strokeWidth);
+        strokeTextNoShadow(ctx2, batchText, batchX, lineY, strokeColor, strokeWidth);
       }
     }
   }
-  ctx.restore();
+  ctx2.restore();
 }
-function renderSingleChar(ctx, char, charX, charWidth, lineY, transform, savedAlpha, fontSpec, textColor, strokeColor, strokeWidth, hasShadow) {
+function renderSingleChar(ctx2, char, charX, charWidth, lineY, transform, savedAlpha, fontSpec, textColor, strokeColor, strokeWidth, hasShadow) {
   const charCenterX = charX + charWidth / 2;
-  ctx.save();
+  ctx2.save();
   if (transform.blur && transform.blur > 0.1) {
     try {
-      ctx.filter = `blur(${transform.blur}px)`;
+      ctx2.filter = `blur(${transform.blur}px)`;
     } catch {
     }
   }
-  ctx.translate(charCenterX + transform.offsetX, lineY + transform.offsetY);
-  if (transform.rotation !== 0) ctx.rotate(transform.rotation);
+  ctx2.translate(charCenterX + transform.offsetX, lineY + transform.offsetY);
+  if (transform.rotation !== 0) ctx2.rotate(transform.rotation);
   if (transform.scaleX !== 1 || transform.scaleY !== 1) {
-    ctx.scale(transform.scaleX, transform.scaleY);
+    ctx2.scale(transform.scaleX, transform.scaleY);
   }
-  ctx.globalAlpha = savedAlpha * Math.max(0, Math.min(1, transform.alpha));
-  ctx.font = fontSpec;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
+  ctx2.globalAlpha = savedAlpha * Math.max(0, Math.min(1, transform.alpha));
+  ctx2.font = fontSpec;
+  ctx2.textAlign = "center";
+  ctx2.textBaseline = "alphabetic";
   const hasStroke = strokeWidth > 0 && !!strokeColor;
   if (hasShadow && hasStroke) {
-    strokeTextNoShadow(ctx, char, 0, 0, strokeColor, strokeWidth);
-    disableShadow(ctx);
-    ctx.fillStyle = textColor;
-    ctx.fillText(char, 0, 0);
-    strokeTextNoShadow(ctx, char, 0, 0, strokeColor, strokeWidth);
+    strokeTextNoShadow(ctx2, char, 0, 0, strokeColor, strokeWidth);
+    disableShadow(ctx2);
+    ctx2.fillStyle = textColor;
+    ctx2.fillText(char, 0, 0);
+    strokeTextNoShadow(ctx2, char, 0, 0, strokeColor, strokeWidth);
   } else {
-    ctx.fillStyle = textColor;
-    ctx.fillText(char, 0, 0);
-    disableShadow(ctx);
+    ctx2.fillStyle = textColor;
+    ctx2.fillText(char, 0, 0);
+    disableShadow(ctx2);
     if (hasStroke) {
-      strokeTextNoShadow(ctx, char, 0, 0, strokeColor, strokeWidth);
+      strokeTextNoShadow(ctx2, char, 0, 0, strokeColor, strokeWidth);
     }
   }
-  ctx.restore();
+  ctx2.restore();
 }
 
 // ../../server/src/renderer/textCharAnimations.ts
@@ -13141,7 +13137,7 @@ var CHAR_ANIMATION_REGISTRY = [
   { progressKey: "_waveOutProgress", textKey: "_waveOutText", isOut: true, getTransform: CHAR_TRANSFORMS.waveOut.transform },
   { progressKey: "_dropOutProgress", textKey: "_dropOutText", isOut: true, getTransform: CHAR_TRANSFORMS.dropOut.transform }
 ];
-function renderTextCharAnimations2(ctx, props, wrappedLines, lineXs, lineYs, lineWs, textAlign, textColor, fontSpec, strokeColor, strokeWidth, scaleX, scaleY, charSpacingPx = 0, charWidthCache, skipShadow = false) {
+function renderTextCharAnimations2(ctx2, props, wrappedLines, lineXs, lineYs, lineWs, textAlign, textColor, fontSpec, strokeColor, strokeWidth, scaleX, scaleY, charSpacingPx = 0, charWidthCache, skipShadow = false) {
   const animations = [];
   for (const def of CHAR_ANIMATION_REGISTRY) {
     const progress = props[def.progressKey];
@@ -13155,13 +13151,13 @@ function renderTextCharAnimations2(ctx, props, wrappedLines, lineXs, lineYs, lin
   if (hasShadow) {
     const elemSx = props.scaleX ?? 1;
     const elemSy = props.scaleY ?? 1;
-    ctx.shadowColor = props.shadowColor || "#000000";
-    ctx.shadowBlur = (props.shadowBlur ?? 0) * (scaleX + scaleY) * (elemSx + elemSy) / 4;
-    ctx.shadowOffsetX = (props.shadowOffsetX ?? 0) * scaleX * elemSx;
-    ctx.shadowOffsetY = (props.shadowOffsetY ?? 0) * scaleY * elemSy;
+    ctx2.shadowColor = props.shadowColor || "#000000";
+    ctx2.shadowBlur = (props.shadowBlur ?? 0) * (scaleX + scaleY) * (elemSx + elemSy) / 4;
+    ctx2.shadowOffsetX = (props.shadowOffsetX ?? 0) * scaleX * elemSx;
+    ctx2.shadowOffsetY = (props.shadowOffsetY ?? 0) * scaleY * elemSy;
   }
   renderTextCharAnimations(
-    ctx,
+    ctx2,
     wrappedLines,
     lineXs,
     lineYs,
@@ -13176,7 +13172,7 @@ function renderTextCharAnimations2(ctx, props, wrappedLines, lineXs, lineYs, lin
     hasShadow,
     charWidthCache
   );
-  disableShadow(ctx);
+  disableShadow(ctx2);
   return true;
 }
 
@@ -13452,12 +13448,12 @@ var FontRegistry = class _FontRegistry {
    * Download a file from URL to local path, following redirects.
    */
   static downloadFile(url, destPath) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const protocol = url.startsWith("https") ? https2 : http2;
       const request = protocol.get(url, { timeout: 3e4 }, (response) => {
         if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           _FontRegistry.downloadFile(response.headers.location, destPath).then(
-            resolve3,
+            resolve2,
             reject
           );
           return;
@@ -13470,7 +13466,7 @@ var FontRegistry = class _FontRegistry {
         response.pipe(fileStream);
         fileStream.on("finish", () => {
           fileStream.close();
-          resolve3();
+          resolve2();
         });
         fileStream.on("error", (err) => {
           fs4.unlink(destPath, () => {
@@ -16365,26 +16361,26 @@ function deterministicHash(seed, x, y) {
   h ^= h >> 16;
   return (h & 32767) / 32767;
 }
-var applyGaussianBlur = (ctx, width, height, params) => {
+var applyGaussianBlur = (ctx2, width, height, params) => {
   const radius = Math.max(0, num2(params.radius, 4));
   if (radius === 0) return;
   const sigma = radius / 2;
-  if (typeof ctx.filter === "string") {
+  if (typeof ctx2.filter === "string") {
     try {
-      ctx.save();
-      ctx.filter = `blur(${sigma}px)`;
-      ctx.drawImage(ctx.canvas, 0, 0);
-      ctx.restore();
-      ctx.filter = "none";
+      ctx2.save();
+      ctx2.filter = `blur(${sigma}px)`;
+      ctx2.drawImage(ctx2.canvas, 0, 0);
+      ctx2.restore();
+      ctx2.filter = "none";
       return;
     } catch {
-      ctx.restore();
-      ctx.filter = "none";
+      ctx2.restore();
+      ctx2.filter = "none";
     }
   }
-  applyGaussianWeightedBlur(ctx, width, height, radius);
+  applyGaussianWeightedBlur(ctx2, width, height, radius);
 };
-function applyGaussianWeightedBlur(ctx, width, height, radius) {
+function applyGaussianWeightedBlur(ctx2, width, height, radius) {
   const sigma2 = radius * radius * 0.25 + 1e-3;
   const maxTap = Math.min(16, Math.ceil(radius));
   const wLen = maxTap * 2 + 1;
@@ -16393,7 +16389,7 @@ function applyGaussianWeightedBlur(ctx, width, height, radius) {
     const i = ti - maxTap;
     weights[ti] = Math.exp(-0.5 * i * i / sigma2);
   }
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const w = width, h = height;
   const temp = new Float32Array(data.length);
@@ -16437,24 +16433,24 @@ function applyGaussianWeightedBlur(ctx, width, height, radius) {
       data[idx + 3] = a / total;
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 }
-function applyBoxBlur(ctx, width, height, radius) {
+function applyBoxBlur(ctx2, width, height, radius) {
   if (radius <= 0) return;
-  if (typeof ctx.filter === "string") {
+  if (typeof ctx2.filter === "string") {
     try {
-      ctx.save();
-      ctx.filter = `blur(${Math.round(radius * 0.56)}px)`;
-      ctx.drawImage(ctx.canvas, 0, 0);
-      ctx.restore();
-      ctx.filter = "none";
+      ctx2.save();
+      ctx2.filter = `blur(${Math.round(radius * 0.56)}px)`;
+      ctx2.drawImage(ctx2.canvas, 0, 0);
+      ctx2.restore();
+      ctx2.filter = "none";
       return;
     } catch {
-      ctx.restore();
-      ctx.filter = "none";
+      ctx2.restore();
+      ctx2.filter = "none";
     }
   }
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const w = width, h = height;
   const temp = new Uint8ClampedArray(data.length);
@@ -16496,14 +16492,14 @@ function applyBoxBlur(ctx, width, height, radius) {
       data[idx + 3] = a / count;
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 }
-var applyRadialBlur = (ctx, width, height, params) => {
+var applyRadialBlur = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.3)));
   const cx = num2(params.centerX, 0.5);
   const cy = num2(params.centerY, 0.5);
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const SAMPLES = 12;
@@ -16537,14 +16533,14 @@ var applyRadialBlur = (ctx, width, height, params) => {
       dst[dstIdx + 3] = a / SAMPLES;
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyWave = (ctx, width, height, params) => {
+var applyWave = (ctx2, width, height, params) => {
   const amplitude = num2(params.amplitude, 10);
   const frequency = num2(params.frequency, 4);
   const phase = num2(params.phase, 0);
   if (amplitude === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(
     new Uint8ClampedArray(imageData.data).buffer.slice(0)
   );
@@ -16562,16 +16558,16 @@ var applyWave = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyRipple = (ctx, width, height, params) => {
+var applyRipple = (ctx2, width, height, params) => {
   const amplitude = num2(params.amplitude, 8);
   const frequency = num2(params.frequency, 6);
   const phase = num2(params.phase, 0);
   const cx = num2(params.centerX, 0.5) * width;
   const cy = num2(params.centerY, 0.5) * height;
   if (amplitude === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(
     new Uint8ClampedArray(imageData.data).buffer.slice(0)
   );
@@ -16591,16 +16587,16 @@ var applyRipple = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyRgbSplit = (ctx, width, height, params) => {
+var applyRgbSplit = (ctx2, width, height, params) => {
   const amount = num2(params.amount, 5);
   const angleDeg = num2(params.angle, 0);
   if (amount === 0) return;
   const angleRad = angleDeg * Math.PI / 180;
   const offsetX = Math.round(amount * Math.cos(angleRad));
   const offsetY = Math.round(amount * Math.sin(angleRad));
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   for (let y = 0; y < height; y++) {
@@ -16616,9 +16612,9 @@ var applyRgbSplit = (ctx, width, height, params) => {
       dst[dstIdx + 3] = src[dstIdx + 3];
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyVignette = (ctx, width, height, params) => {
+var applyVignette = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const radius = num2(params.radius, 0.8);
   const softness = Math.max(0.01, num2(params.softness, 0.5));
@@ -16629,24 +16625,24 @@ var applyVignette = (ctx, width, height, params) => {
   const diagPx = Math.sqrt(cx * cx + cy * cy);
   const innerR = radius / maxNormDist * diagPx;
   const outerR = (radius + softness) / maxNormDist * diagPx;
-  ctx.save();
-  ctx.globalCompositeOperation = "multiply";
-  const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
+  ctx2.save();
+  ctx2.globalCompositeOperation = "multiply";
+  const grad = ctx2.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
   grad.addColorStop(0, "rgba(255,255,255,1)");
   const midDarken = Math.round(255 * (1 - intensity * 0.5));
   grad.addColorStop(0.5, `rgba(${midDarken},${midDarken},${midDarken},1)`);
   const edgeDarken = Math.round(255 * (1 - intensity));
   grad.addColorStop(1, `rgba(${edgeDarken},${edgeDarken},${edgeDarken},1)`);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  ctx2.fillStyle = grad;
+  ctx2.fillRect(0, 0, width, height);
+  ctx2.restore();
 };
-var applyGlow = (ctx, width, height, params) => {
+var applyGlow = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const radius = Math.max(1, num2(params.radius, 5));
   const threshold = Math.max(0, Math.min(1, num2(params.threshold, 0.5)));
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const invRange = 1 / Math.max(1e-3, 1 - threshold);
@@ -16690,12 +16686,12 @@ var applyGlow = (ctx, width, height, params) => {
       dst[di + 3] = src[di + 3];
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applySharpen = (ctx, width, height, params) => {
+var applySharpen = (ctx2, width, height, params) => {
   const amount = Math.max(0, num2(params.amount, 0.5));
   if (amount === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const k = amount;
@@ -16709,7 +16705,7 @@ var applySharpen = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
 function hue2rgb(p, q, t) {
   if (t < 0) t += 1;
@@ -16719,7 +16715,7 @@ function hue2rgb(p, q, t) {
   if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
   return p;
 }
-var applyColorGrading = (ctx, width, height, params) => {
+var applyColorGrading = (ctx2, width, height, params) => {
   const liftR = num2(params.liftR, 0);
   const liftG = num2(params.liftG, 0);
   const liftB = num2(params.liftB, 0);
@@ -16731,7 +16727,7 @@ var applyColorGrading = (ctx, width, height, params) => {
   const hue = num2(params.hue, 0);
   if (liftR === 0 && liftG === 0 && liftB === 0 && gamma === 1 && gain === 1 && saturation === 1 && temperature === 0 && tint === 0 && hue === 0)
     return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const invGamma = 1 / gamma;
   const hueNorm = hue / 360;
@@ -16788,9 +16784,9 @@ var applyColorGrading = (ctx, width, height, params) => {
     data[i + 1] = clamp2552(g * 255);
     data[i + 2] = clamp2552(b * 255);
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyVhs = (ctx, width, height, params) => {
+var applyVhs = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.6)));
   const scanlineOpacity = Math.max(
     0,
@@ -16800,7 +16796,7 @@ var applyVhs = (ctx, width, height, params) => {
   const noiseAmount = Math.max(0, Math.min(0.5, num2(params.noiseAmount, 0.15)));
   const seed = Math.floor(num2(params._seed, 0));
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const bleedPx = Math.round(colorBleed * intensity);
@@ -16826,9 +16822,9 @@ var applyVhs = (ctx, width, height, params) => {
       dst[idx + 2] = clamp2552(dst[idx + 2] + noiseDelta);
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyGlitchBlock = (ctx, width, height, params) => {
+var applyGlitchBlock = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const blockSize = Math.max(
     4,
@@ -16836,7 +16832,7 @@ var applyGlitchBlock = (ctx, width, height, params) => {
   );
   const seed = Math.floor(num2(params._seed, 0));
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const maxShift = Math.round(width * 0.15 * intensity);
@@ -16864,14 +16860,14 @@ var applyGlitchBlock = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyFilmGrain = (ctx, width, height, params) => {
+var applyFilmGrain = (ctx2, width, height, params) => {
   const amount = Math.max(0, Math.min(1, num2(params.amount, 0.3)));
   const size = Math.max(1, Math.min(4, Math.round(num2(params.size, 1))));
   const seed = Math.floor(num2(params._seed, 0));
   if (amount === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let y = 0; y < height; y++) {
     const gy = Math.floor(y / size);
@@ -16885,20 +16881,20 @@ var applyFilmGrain = (ctx, width, height, params) => {
       data[idx + 2] = clamp2552(data[idx + 2] + noiseDelta);
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyShake = (ctx, width, height, params) => {
+var applyShake = (ctx2, width, height, params) => {
   const offsetX = Math.round(num2(params._offsetX, 0));
   const offsetY = Math.round(num2(params._offsetY, 0));
   if (offsetX === 0 && offsetY === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  ctx.clearRect(0, 0, width, height);
-  ctx.putImageData(imageData, offsetX, offsetY);
+  const imageData = ctx2.getImageData(0, 0, width, height);
+  ctx2.clearRect(0, 0, width, height);
+  ctx2.putImageData(imageData, offsetX, offsetY);
 };
-var applyFisheye = (ctx, width, height, params) => {
+var applyFisheye = (ctx2, width, height, params) => {
   const amount = Math.max(0, Math.min(1, num2(params.amount, 0.5)));
   if (amount === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(
     new Uint8ClampedArray(imageData.data).buffer.slice(0)
   );
@@ -16922,15 +16918,15 @@ var applyFisheye = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applySwirl = (ctx, width, height, params) => {
+var applySwirl = (ctx2, width, height, params) => {
   const angle2 = num2(params.angle, 90) * Math.PI / 180;
   const radius = num2(params.radius, 0.5) * Math.min(width, height);
   const cx = num2(params.centerX, 0.5) * width;
   const cy = num2(params.centerY, 0.5) * height;
   if (angle2 === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(
     new Uint8ClampedArray(imageData.data).buffer.slice(0)
   );
@@ -16953,15 +16949,15 @@ var applySwirl = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyKaleidoscope = (ctx, width, height, params) => {
+var applyKaleidoscope = (ctx2, width, height, params) => {
   const segments = Math.max(
     2,
     Math.min(12, Math.round(num2(params.segments, 6)))
   );
   const rotation = num2(params.rotation, 0) * Math.PI / 180;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(
     new Uint8ClampedArray(imageData.data).buffer.slice(0)
   );
@@ -16984,9 +16980,9 @@ var applyKaleidoscope = (ctx, width, height, params) => {
       copyPixel32(dst32, y * width + x, src32, csy * width + csx);
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyPixelate = (ctx, width, height, params) => {
+var applyPixelate = (ctx2, width, height, params) => {
   const blockSize = Math.max(
     2,
     Math.min(64, Math.round(num2(params.blockSize, 8)))
@@ -16994,11 +16990,11 @@ var applyPixelate = (ctx, width, height, params) => {
   const sw = Math.max(1, Math.round(width / blockSize));
   const sh = Math.max(1, Math.round(height / blockSize));
   try {
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(ctx.canvas, 0, 0, sw, sh);
-    ctx.drawImage(
-      ctx.canvas,
+    ctx2.save();
+    ctx2.imageSmoothingEnabled = false;
+    ctx2.drawImage(ctx2.canvas, 0, 0, sw, sh);
+    ctx2.drawImage(
+      ctx2.canvas,
       0,
       0,
       sw,
@@ -17008,13 +17004,13 @@ var applyPixelate = (ctx, width, height, params) => {
       width,
       height
     );
-    ctx.imageSmoothingEnabled = true;
-    ctx.restore();
+    ctx2.imageSmoothingEnabled = true;
+    ctx2.restore();
     return;
   } catch {
-    ctx.restore();
+    ctx2.restore();
   }
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(imageData.data.buffer);
   for (let by = 0; by < height; by += blockSize) {
     for (let bx = 0; bx < width; bx += blockSize) {
@@ -17031,52 +17027,52 @@ var applyPixelate = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyPosterize = (ctx, width, height, params) => {
+var applyPosterize = (ctx2, width, height, params) => {
   const levels = Math.max(2, Math.min(16, Math.round(num2(params.levels, 4))));
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     data[i] = Math.round(data[i] / 255 * levels) / levels * 255;
     data[i + 1] = Math.round(data[i + 1] / 255 * levels) / levels * 255;
     data[i + 2] = Math.round(data[i + 2] / 255 * levels) / levels * 255;
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyInvert = (ctx, width, height, params) => {
+var applyInvert = (ctx2, width, height, params) => {
   const amount = Math.max(0, Math.min(1, num2(params.amount, 1)));
   if (amount === 0) return;
-  if (typeof ctx.filter === "string") {
+  if (typeof ctx2.filter === "string") {
     try {
-      ctx.save();
-      ctx.filter = `invert(${amount})`;
-      ctx.drawImage(ctx.canvas, 0, 0);
-      ctx.restore();
-      ctx.filter = "none";
+      ctx2.save();
+      ctx2.filter = `invert(${amount})`;
+      ctx2.drawImage(ctx2.canvas, 0, 0);
+      ctx2.restore();
+      ctx2.filter = "none";
       return;
     } catch {
-      ctx.restore();
-      ctx.filter = "none";
+      ctx2.restore();
+      ctx2.filter = "none";
     }
   }
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     data[i] = data[i] + (255 - 2 * data[i]) * amount;
     data[i + 1] = data[i + 1] + (255 - 2 * data[i + 1]) * amount;
     data[i + 2] = data[i + 2] + (255 - 2 * data[i + 2]) * amount;
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyDuotone = (ctx, width, height, params) => {
+var applyDuotone = (ctx2, width, height, params) => {
   const shadowR = num2(params.shadowR, 0);
   const shadowG = num2(params.shadowG, 0);
   const shadowB = num2(params.shadowB, 0.3);
   const highlightR = num2(params.highlightR, 1);
   const highlightG = num2(params.highlightG, 0.9);
   const highlightB = num2(params.highlightB, 0.6);
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
@@ -17084,13 +17080,13 @@ var applyDuotone = (ctx, width, height, params) => {
     data[i + 1] = (shadowG + (highlightG - shadowG) * lum) * 255;
     data[i + 2] = (shadowB + (highlightB - shadowB) * lum) * 255;
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyHalftone = (ctx, width, height, params) => {
+var applyHalftone = (ctx2, width, height, params) => {
   const dotSize = Math.max(2, Math.min(20, num2(params.dotSize, 6)));
   const angleDeg = num2(params.angle, 45);
   const angleRad = angleDeg * Math.PI / 180;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const s = Math.sin(angleRad);
@@ -17116,12 +17112,12 @@ var applyHalftone = (ctx, width, height, params) => {
       dst[dstIdx + 3] = src[srcIdx + 3];
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyEmboss = (ctx, width, height, params) => {
+var applyEmboss = (ctx2, width, height, params) => {
   const amount = Math.max(0, Math.min(2, num2(params.amount, 1)));
   if (amount === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   for (let y = 1; y < height - 1; y++) {
@@ -17136,14 +17132,14 @@ var applyEmboss = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applySpherize = (ctx, width, height, params) => {
+var applySpherize = (ctx2, width, height, params) => {
   const amount = Math.max(-1, Math.min(1, num2(params.amount, 0.5)));
   const cx = num2(params.centerX, 0.5) * width;
   const cy = num2(params.centerY, 0.5) * height;
   if (amount === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(
     new Uint8ClampedArray(imageData.data).buffer.slice(0)
   );
@@ -17166,13 +17162,13 @@ var applySpherize = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyThermal = (ctx, width, height, params) => {
+var applyThermal = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.8)));
   const thermalShift = num2(params._thermalShift, 0.5);
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
@@ -17208,12 +17204,12 @@ var applyThermal = (ctx, width, height, params) => {
     data[i + 1] = (data[i + 1] / 255 + (tg - data[i + 1] / 255) * intensity) * 255;
     data[i + 2] = (data[i + 2] / 255 + (tb - data[i + 2] / 255) * intensity) * 255;
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyMotionBlur = (ctx, width, height, params) => {
+var applyMotionBlur = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src = new Uint8ClampedArray(imageData.data);
   const dst = imageData.data;
   const samples = Math.max(2, Math.min(16, Math.round(num2(params.samples, 8))));
@@ -17241,12 +17237,12 @@ var applyMotionBlur = (ctx, width, height, params) => {
       dst[dstIdx + 3] = a / count;
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyEcho = (ctx, width, height, params) => {
+var applyEcho = (ctx2, width, height, params) => {
   const decay = Math.max(0, Math.min(1, num2(params.decay, 0.6)));
   if (decay === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const factor = 1 + decay * 0.15;
   for (let i = 0; i < data.length; i += 4) {
@@ -17254,16 +17250,16 @@ var applyEcho = (ctx, width, height, params) => {
     data[i + 1] = clamp2552(data[i + 1] * factor);
     data[i + 2] = clamp2552(data[i + 2] * factor);
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyColorLut = (ctx, width, height, params) => {
+var applyColorLut = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 1)));
   const lutIndex = Math.max(
     0,
     Math.min(7, Math.round(num2(params.lutIndex, 0)))
   );
   if (intensity === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     let r = data[i] / 255;
@@ -17334,14 +17330,14 @@ var applyColorLut = (ctx, width, height, params) => {
     data[i + 1] = clamp2552((g + (gg - g) * intensity) * 255);
     data[i + 2] = clamp2552((b + (gb - b) * intensity) * 255);
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyTiltShift = (ctx, width, height, params) => {
+var applyTiltShift = (ctx2, width, height, params) => {
   const blurAmount = Math.max(0, Math.min(20, num2(params.blurAmount, 8)));
   const focusPos = Math.max(0, Math.min(1, num2(params.focusPosition, 0.5)));
   const focusWidth = Math.max(0, Math.min(0.5, num2(params.focusWidth, 0.15)));
   if (blurAmount === 0) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const w = width, h = height;
   const rowRadius = new Float32Array(h);
@@ -17420,14 +17416,14 @@ var applyTiltShift = (ctx, width, height, params) => {
       data[di + 3] = a / total;
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyBokeh = (ctx, width, height, params) => {
+var applyBokeh = (ctx2, width, height, params) => {
   const radius = Math.max(1, Math.min(20, num2(params.radius, 6)));
   const threshold = Math.max(0, Math.min(1, num2(params.threshold, 0.5)));
   const intensity = Math.max(0, Math.min(2, num2(params.intensity, 1)));
   if (radius <= 1) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const w = width, h = height;
   const sigma2 = radius * radius * 0.25 + 1e-3;
@@ -17485,9 +17481,9 @@ var applyBokeh = (ctx, width, height, params) => {
       data[di + 3] = clamp2552(a / Math.max(1, total));
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyLensFlare = (ctx, width, height, params) => {
+var applyLensFlare = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.6)));
   const posX = num2(params.posX, 0.5) * width;
   const posY = num2(params.posY, 0.3) * height;
@@ -17495,11 +17491,11 @@ var applyLensFlare = (ctx, width, height, params) => {
   const seed = num2(params._seed, 0);
   if (intensity === 0) return;
   const maxDim = Math.max(width, height);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
+  ctx2.save();
+  ctx2.globalCompositeOperation = "lighter";
   const glowR = maxDim * 0.8;
   const glowN = glowR / maxDim;
-  const glowGrad = ctx.createRadialGradient(posX, posY, 0, posX, posY, glowR);
+  const glowGrad = ctx2.createRadialGradient(posX, posY, 0, posX, posY, glowR);
   glowGrad.addColorStop(0, `rgba(255,243,204,${intensity.toFixed(3)})`);
   glowGrad.addColorStop(
     0.33,
@@ -17510,11 +17506,11 @@ var applyLensFlare = (ctx, width, height, params) => {
     `rgba(255,243,204,${(intensity * Math.exp(-0.67 * glowN * 6)).toFixed(3)})`
   );
   glowGrad.addColorStop(1, `rgba(255,243,204,0)`);
-  ctx.fillStyle = glowGrad;
-  ctx.fillRect(0, 0, width, height);
+  ctx2.fillStyle = glowGrad;
+  ctx2.fillRect(0, 0, width, height);
   const rayLen = maxDim * 0.8;
   const raySegments = 10;
-  ctx.strokeStyle = "rgba(255,204,128,1)";
+  ctx2.strokeStyle = "rgba(255,204,128,1)";
   for (let i = 0; i < numRays; i++) {
     const rayAngle = i * Math.PI * 2 / numRays + seed * 0.5;
     const dx = Math.cos(rayAngle), dy = Math.sin(rayAngle);
@@ -17522,18 +17518,18 @@ var applyLensFlare = (ctx, width, height, params) => {
       const t0 = s / raySegments, t1 = (s + 1) / raySegments;
       const alpha = intensity * 0.6 * Math.exp(-t0 * (rayLen / maxDim) * 3);
       if (alpha < 4e-3) break;
-      ctx.globalAlpha = alpha;
-      ctx.lineWidth = Math.max(0.5, 2.5 * (1 - t0 * 0.8));
-      ctx.beginPath();
-      ctx.moveTo(posX + dx * t0 * rayLen, posY + dy * t0 * rayLen);
-      ctx.lineTo(posX + dx * t1 * rayLen, posY + dy * t1 * rayLen);
-      ctx.stroke();
+      ctx2.globalAlpha = alpha;
+      ctx2.lineWidth = Math.max(0.5, 2.5 * (1 - t0 * 0.8));
+      ctx2.beginPath();
+      ctx2.moveTo(posX + dx * t0 * rayLen, posY + dy * t0 * rayLen);
+      ctx2.lineTo(posX + dx * t1 * rayLen, posY + dy * t1 * rayLen);
+      ctx2.stroke();
     }
   }
   const ghostX = width - posX, ghostY = height - posY;
   const ghostR = maxDim * 0.6;
   const ghostN = ghostR / maxDim;
-  const ghostGrad = ctx.createRadialGradient(
+  const ghostGrad = ctx2.createRadialGradient(
     ghostX,
     ghostY,
     0,
@@ -17554,17 +17550,17 @@ var applyLensFlare = (ctx, width, height, params) => {
     `rgba(128,178,255,${(intensity * 0.3 * Math.exp(-0.67 * ghostN * 8)).toFixed(3)})`
   );
   ghostGrad.addColorStop(1, `rgba(128,178,255,0)`);
-  ctx.fillStyle = ghostGrad;
-  ctx.fillRect(0, 0, width, height);
-  ctx.globalAlpha = intensity * 0.15;
-  ctx.strokeStyle = "rgba(204,128,255,1)";
-  ctx.lineWidth = maxDim * 0.02;
-  ctx.beginPath();
-  ctx.arc(posX, posY, maxDim * 0.3, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+  ctx2.fillStyle = ghostGrad;
+  ctx2.fillRect(0, 0, width, height);
+  ctx2.globalAlpha = intensity * 0.15;
+  ctx2.strokeStyle = "rgba(204,128,255,1)";
+  ctx2.lineWidth = maxDim * 0.02;
+  ctx2.beginPath();
+  ctx2.arc(posX, posY, maxDim * 0.3, 0, Math.PI * 2);
+  ctx2.stroke();
+  ctx2.restore();
 };
-var applyLightLeak = (ctx, width, height, params) => {
+var applyLightLeak = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const colorR = Math.max(0, Math.min(1, num2(params.colorR, 1)));
   const colorG = Math.max(0, Math.min(1, num2(params.colorG, 0.5)));
@@ -17579,35 +17575,35 @@ var applyLightLeak = (ctx, width, height, params) => {
     const n = radius / maxDim;
     const a1 = alpha * Math.exp(-0.33 * n * 2.5);
     const a2 = alpha * Math.exp(-0.67 * n * 2.5);
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    const grad = ctx2.createRadialGradient(cx, cy, 0, cx, cy, radius);
     grad.addColorStop(0, `rgba(${r},${g},${b},${alpha.toFixed(3)})`);
     grad.addColorStop(0.33, `rgba(${r},${g},${b},${a1.toFixed(3)})`);
     grad.addColorStop(0.67, `rgba(${r},${g},${b},${a2.toFixed(3)})`);
     grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
     return grad;
   };
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = 1;
+  ctx2.save();
+  ctx2.globalCompositeOperation = "screen";
+  ctx2.globalAlpha = 1;
   const cx1 = width * (0.5 + Math.sin(seed * 0.7) * 0.3);
   const cy1 = height * (0.5 + Math.cos(seed * 0.5) * 0.3);
-  ctx.fillStyle = makeGrad(cx1, cy1, maxDim * 1.5, intensity);
-  ctx.fillRect(0, 0, width, height);
+  ctx2.fillStyle = makeGrad(cx1, cy1, maxDim * 1.5, intensity);
+  ctx2.fillRect(0, 0, width, height);
   const cx2 = width * (0.5 - Math.sin(seed * 0.5 + 1) * 0.4);
   const cy2 = height * (0.5 - Math.cos(seed * 0.3 + 2) * 0.3);
-  ctx.fillStyle = makeGrad(cx2, cy2, maxDim * 1.2, intensity * 0.5);
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  ctx2.fillStyle = makeGrad(cx2, cy2, maxDim * 1.2, intensity * 0.5);
+  ctx2.fillRect(0, 0, width, height);
+  ctx2.restore();
 };
-var applyRain = (ctx, width, height, params) => {
+var applyRain = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const seed = num2(params._seed, 0);
   const angle2 = num2(params.angle, 10) * Math.PI / 180;
   const dropLength = num2(params.dropLength, 15);
   if (intensity === 0) return;
   const sa = Math.sin(angle2), ca = Math.cos(angle2);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
+  ctx2.save();
+  ctx2.globalCompositeOperation = "lighter";
   for (let layer = 0; layer < 3; layer++) {
     const scale = 1 + layer * 0.5;
     const speed = 1 + layer * 0.3;
@@ -17621,9 +17617,9 @@ var applyRain = (ctx, width, height, params) => {
     const margin = Math.ceil(Math.abs(sa) * height) + cellW;
     const cols = Math.ceil((width + margin) / cellW) + 1;
     const rows = Math.ceil(height / cellH) + 1;
-    ctx.globalAlpha = Math.min(1, layerBright * intensity);
-    ctx.strokeStyle = "rgba(178,191,217,1)";
-    ctx.lineWidth = Math.max(0.5, 1.5 - layer * 0.3);
+    ctx2.globalAlpha = Math.min(1, layerBright * intensity);
+    ctx2.strokeStyle = "rgba(178,191,217,1)";
+    ctx2.lineWidth = Math.max(0.5, 1.5 - layer * 0.3);
     for (let row = -1; row <= rows; row++) {
       const absRow = row + yShift;
       for (let col = 0; col < cols; col++) {
@@ -17634,23 +17630,23 @@ var applyRain = (ctx, width, height, params) => {
         const ry = row * cellH + yFrac;
         const sx = rx - sa * ry;
         const sy = ry;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + sa * cellH * 0.8, sy + ca * cellH * 0.8);
-        ctx.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(sx, sy);
+        ctx2.lineTo(sx + sa * cellH * 0.8, sy + ca * cellH * 0.8);
+        ctx2.stroke();
       }
     }
   }
-  ctx.restore();
+  ctx2.restore();
 };
-var applySnow = (ctx, width, height, params) => {
+var applySnow = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const seed = num2(params._seed, 0);
   const flakeSize = Math.max(1, Math.min(5, num2(params.flakeSize, 2)));
   if (intensity === 0) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.fillStyle = "rgba(255,255,255,1)";
+  ctx2.save();
+  ctx2.globalCompositeOperation = "lighter";
+  ctx2.fillStyle = "rgba(255,255,255,1)";
   for (let layer = 0; layer < 4; layer++) {
     const scale = 1.5 + layer * 0.8;
     const speed = 30 + layer * 15;
@@ -17663,7 +17659,7 @@ var applySnow = (ctx, width, height, params) => {
     const margin = Math.ceil(Math.abs(drift)) + cellSize;
     const cols = Math.ceil((width + margin * 2) / cellSize) + 1;
     const rows = Math.ceil(height / cellSize) + 1;
-    ctx.globalAlpha = Math.min(1, layerBright * intensity * 0.8);
+    ctx2.globalAlpha = Math.min(1, layerBright * intensity * 0.8);
     for (let row = -1; row <= rows; row++) {
       const absRow = row + yShift;
       for (let col = 0; col < cols; col++) {
@@ -17676,22 +17672,22 @@ var applySnow = (ctx, width, height, params) => {
         if (x < -cellSize || x > width + cellSize) continue;
         if (y < -cellSize || y > height + cellSize) continue;
         const flakeRadius = Math.max(0.5, (0.15 + h * 0.1) * cellSize * 0.5);
-        ctx.beginPath();
-        ctx.arc(x, y, flakeRadius, 0, Math.PI * 2);
-        ctx.fill();
+        ctx2.beginPath();
+        ctx2.arc(x, y, flakeRadius, 0, Math.PI * 2);
+        ctx2.fill();
       }
     }
   }
-  ctx.restore();
+  ctx2.restore();
 };
-var applySparkle = (ctx, width, height, params) => {
+var applySparkle = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.5)));
   const density = Math.max(0.1, Math.min(1, num2(params.density, 0.3)));
   const seed = num2(params._seed, 0);
   const size = Math.max(1, Math.min(10, num2(params.size, 3)));
   if (intensity === 0) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
+  ctx2.save();
+  ctx2.globalCompositeOperation = "screen";
   const seedInt = Math.round(seed);
   const count = Math.round(density * 40);
   for (let i = 0; i < count; i++) {
@@ -17701,33 +17697,33 @@ var applySparkle = (ctx, width, height, params) => {
     const y = deterministicHash(seedInt, i, 32) * height;
     const twinkle = 0.5 + 0.5 * Math.sin(seed * 6.28 * deterministicHash(seedInt, i, 33));
     const s = size * (0.5 + deterministicHash(seedInt, i, 34) * 0.5);
-    ctx.globalAlpha = intensity * twinkle * 0.8;
-    ctx.fillStyle = "rgba(255, 255, 255, 1)";
-    ctx.beginPath();
-    ctx.arc(x, y, s, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = intensity * twinkle * 0.4;
-    ctx.fillRect(x - s * 2, y - 0.5, s * 4, 1);
-    ctx.fillRect(x - 0.5, y - s * 2, 1, s * 4);
+    ctx2.globalAlpha = intensity * twinkle * 0.8;
+    ctx2.fillStyle = "rgba(255, 255, 255, 1)";
+    ctx2.beginPath();
+    ctx2.arc(x, y, s, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.globalAlpha = intensity * twinkle * 0.4;
+    ctx2.fillRect(x - s * 2, y - 0.5, s * 4, 1);
+    ctx2.fillRect(x - 0.5, y - s * 2, 1, s * 4);
   }
-  ctx.restore();
+  ctx2.restore();
 };
-var applyFlash = (ctx, width, height, params) => {
+var applyFlash = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.8)));
   const flash = Math.max(0, Math.min(1, num2(params._flash, 0)));
   if (flash * intensity === 0) return;
-  ctx.save();
-  ctx.globalAlpha = flash * intensity;
-  ctx.fillStyle = "rgba(255, 255, 255, 1)";
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  ctx2.save();
+  ctx2.globalAlpha = flash * intensity;
+  ctx2.fillStyle = "rgba(255, 255, 255, 1)";
+  ctx2.fillRect(0, 0, width, height);
+  ctx2.restore();
 };
-var applyZoomPulse = (ctx, width, height, params) => {
+var applyZoomPulse = (ctx2, width, height, params) => {
   const zoom = Math.max(1, num2(params._zoom, 1));
   if (zoom <= 1.001) return;
-  const srcData = ctx.getImageData(0, 0, width, height);
+  const srcData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(srcData.data.buffer);
-  const dstData = ctx.createImageData(width, height);
+  const dstData = ctx2.createImageData(width, height);
   const dst32 = new Uint32Array(dstData.data.buffer);
   const halfW = width / 2;
   const halfH = height / 2;
@@ -17741,12 +17737,12 @@ var applyZoomPulse = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(dstData, 0, 0);
+  ctx2.putImageData(dstData, 0, 0);
 };
-var applyMirror = (ctx, width, height, params) => {
+var applyMirror = (ctx2, width, height, params) => {
   const mode = Math.round(num2(params.mode, 0));
   const offset = num2(params.offset, 0);
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(imageData.data.buffer);
   const result32 = new Uint32Array(src32.length);
   result32.set(src32);
@@ -17776,13 +17772,13 @@ var applyMirror = (ctx, width, height, params) => {
     }
   }
   new Uint32Array(imageData.data.buffer).set(result32);
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyColorShift = (ctx, width, height, params) => {
+var applyColorShift = (ctx2, width, height, params) => {
   const amount = Math.max(0, Math.min(1, num2(params.amount, 0.5)));
   const hueOffset = num2(params._hueOffset, 0) * amount;
   if (Math.abs(hueOffset) < 0.1) return;
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
@@ -17810,16 +17806,16 @@ var applyColorShift = (ctx, width, height, params) => {
     data[i + 1] = Math.round(hue2rgb2(h) * 255);
     data[i + 2] = Math.round(hue2rgb2(h - 1 / 3) * 255);
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyNeonEdge = (ctx, width, height, params) => {
+var applyNeonEdge = (ctx2, width, height, params) => {
   const intensity = Math.max(0, Math.min(1, num2(params.intensity, 0.7)));
   const bgDarken = Math.max(0, Math.min(1, num2(params.bgDarken, 0.7)));
   const hueOffset = num2(params._hueOffset, 0);
   const edgeWidth = Math.max(0.5, num2(params.edgeWidth, 1));
   if (intensity === 0) return;
   const step = Math.max(1, Math.round(edgeWidth));
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const result = new Uint8ClampedArray(data.length);
   const lum = (idx) => data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114;
@@ -17875,9 +17871,9 @@ var applyNeonEdge = (ctx, width, height, params) => {
     }
   }
   imageData.data.set(result);
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applySplit = (ctx, width, height, params) => {
+var applySplit = (ctx2, width, height, params) => {
   const layout = Math.round(num2(params.layout, 0));
   const zoom = Math.max(0.01, num2(params.zoom, 1));
   let cols, rows;
@@ -17894,9 +17890,9 @@ var applySplit = (ctx, width, height, params) => {
     cols = 1;
     rows = 2;
   }
-  const srcData = ctx.getImageData(0, 0, width, height);
+  const srcData = ctx2.getImageData(0, 0, width, height);
   const src32 = new Uint32Array(srcData.data.buffer);
-  const dstData = ctx.createImageData(width, height);
+  const dstData = ctx2.createImageData(width, height);
   const dst32 = new Uint32Array(dstData.data.buffer);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -17911,18 +17907,18 @@ var applySplit = (ctx, width, height, params) => {
       copyPixel32(dst32, y * width + x, src32, srcY * width + srcX);
     }
   }
-  ctx.putImageData(dstData, 0, 0);
+  ctx2.putImageData(dstData, 0, 0);
 };
-var applyKawaseBlur = (ctx, width, height, params) => {
+var applyKawaseBlur = (ctx2, width, height, params) => {
   const radius = Math.max(0, num2(params.radius, 4));
   if (radius === 0) return;
-  applyBoxBlur(ctx, width, height, Math.ceil(radius));
+  applyBoxBlur(ctx2, width, height, Math.ceil(radius));
 };
-var applyAscii = (ctx, width, height, params) => {
+var applyAscii = (ctx2, width, height, params) => {
   const charSize = Math.max(4, Math.round(num2(params.charSize, 8)));
-  const src = ctx.getImageData(0, 0, width, height);
+  const src = ctx2.getImageData(0, 0, width, height);
   const srcData = src.data;
-  const dst = ctx.createImageData(width, height);
+  const dst = ctx2.createImageData(width, height);
   const dstData = dst.data;
   const bitmaps = [
     0,
@@ -17961,12 +17957,12 @@ var applyAscii = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(dst, 0, 0);
+  ctx2.putImageData(dst, 0, 0);
 };
-var applyCrossHatch = (ctx, width, height, params) => {
+var applyCrossHatch = (ctx2, width, height, params) => {
   const spacing = Math.max(3, num2(params.spacing, 10));
   const lineWidth = Math.max(0.5, num2(params.lineWidth, 1));
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -17984,9 +17980,9 @@ var applyCrossHatch = (ctx, width, height, params) => {
       data[i + 2] = c;
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyGodray = (ctx, width, height, params) => {
+var applyGodray = (ctx2, width, height, params) => {
   const intensity = num2(params.intensity, 0.5);
   const angle2 = num2(params.angle, 30) * Math.PI / 180;
   const lac = num2(params.lacunarity, 2.5);
@@ -17994,7 +17990,7 @@ var applyGodray = (ctx, width, height, params) => {
   const seed = num2(params._seed, 0);
   const ca = Math.cos(angle2);
   const sa = Math.sin(angle2);
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let y = 0; y < height; y++) {
     const ny = y / height;
@@ -18015,9 +18011,9 @@ var applyGodray = (ctx, width, height, params) => {
       data[i + 2] = clamp2552(data[i + 2] + ray * 255);
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applySpotlight = (ctx, width, height, params) => {
+var applySpotlight = (ctx2, width, height, params) => {
   const posX = num2(params.posX, 0.5);
   const posY = num2(params.posY, 0.5);
   const radius = num2(params.radius, 0.5);
@@ -18027,7 +18023,7 @@ var applySpotlight = (ctx, width, height, params) => {
   const scG = num2(params.spotColorG, 1);
   const scB = num2(params.spotColorB, 1);
   const ambient = num2(params.ambient, 0.3);
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let y = 0; y < height; y++) {
     const ny = y / height;
@@ -18047,9 +18043,9 @@ var applySpotlight = (ctx, width, height, params) => {
       data[i + 2] = clamp2552(data[i + 2] * (ambient + scB * spot * intensity));
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyFire = (ctx, width, height, params) => {
+var applyFire = (ctx2, width, height, params) => {
   const intensity = num2(params.intensity, 0.7);
   const scale = num2(params.scale, 4);
   const speed = num2(params.speed, 1);
@@ -18075,7 +18071,7 @@ var applyFire = (ctx, width, height, params) => {
     const f = (t - 0.75) * 4;
     return [1, 0.75 + f * 0.2, 0.2 + f * 0.5];
   }
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   const maxDim = Math.max(width, height);
   const oct1 = maxDim > 800 ? 4 : 6;
@@ -18130,9 +18126,9 @@ var applyFire = (ctx, width, height, params) => {
       data[i + 2] = clamp2552(data[i + 2] + addB * 255);
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyFireworks = (ctx, width, height, params) => {
+var applyFireworks = (ctx2, width, height, params) => {
   const intensity = num2(params.intensity, 0.8);
   const seed = num2(params._seed, 0);
   const density = Math.max(1, Math.min(8, num2(params.density, 4)));
@@ -18174,7 +18170,7 @@ var applyFireworks = (ctx, width, height, params) => {
       }
     }
   }
-  const imageData = ctx.getImageData(0, 0, width, height);
+  const imageData = ctx2.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let b = 0; b < density; b++) {
     const phase = hash(b * 7.13) * 5;
@@ -18286,9 +18282,9 @@ var applyFireworks = (ctx, width, height, params) => {
       }
     }
   }
-  ctx.putImageData(imageData, 0, 0);
+  ctx2.putImageData(imageData, 0, 0);
 };
-var applyCameraMotionBlur = (ctx, width, height, params) => {
+var applyCameraMotionBlur = (ctx2, width, height, params) => {
   const samples = Math.max(2, Math.min(32, Math.round(num2(params.samples, 8))));
   const shutterAngle = Math.max(
     0,
@@ -18299,7 +18295,7 @@ var applyCameraMotionBlur = (ctx, width, height, params) => {
     1,
     Math.round(shutterAngle / 360 * samples * 0.5)
   );
-  applyBoxBlur(ctx, width, height, blurRadius);
+  applyBoxBlur(ctx2, width, height, blurRadius);
 };
 var CANVAS2D_EFFECT_HANDLERS = {
   applyGaussianBlur,
@@ -18351,10 +18347,10 @@ var CANVAS2D_EFFECT_HANDLERS = {
   applyFireworks,
   applyCameraMotionBlur
 };
-function applyCanvas2DEffect(ctx, width, height, fallbackName, params) {
+function applyCanvas2DEffect(ctx2, width, height, fallbackName, params) {
   const handler = CANVAS2D_EFFECT_HANDLERS[fallbackName];
   if (handler) {
-    handler(ctx, width, height, params);
+    handler(ctx2, width, height, params);
   }
 }
 
@@ -18474,7 +18470,7 @@ var SpeedRampCalculator = class {
 };
 
 // ../../shared/render/shapeRenderer.ts
-function renderShapeElement(ctx, params, options) {
+function renderShapeElement(ctx2, params, options) {
   const { shapeType, fill } = params;
   const w = params.width;
   const h = params.height;
@@ -18483,29 +18479,29 @@ function renderShapeElement(ctx, params, options) {
   const stroke = params.stroke;
   const strokeWidth = (params.strokeWidth || 0) * strokeScl;
   if (options?.pixelSnap) {
-    applyPixelSnap(ctx);
+    applyPixelSnap(ctx2);
   }
-  ctx.fillStyle = fill;
+  ctx2.fillStyle = fill;
   if (stroke && strokeWidth > 0) {
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
-    ctx.miterLimit = 2;
+    ctx2.strokeStyle = stroke;
+    ctx2.lineWidth = strokeWidth;
+    ctx2.miterLimit = 2;
   }
   const doStroke = () => {
-    if (stroke && strokeWidth > 0) ctx.stroke();
+    if (stroke && strokeWidth > 0) ctx2.stroke();
   };
   switch (shapeType) {
     // ─── 矩形 ──────────────────────────────────────────────
     case "rect": {
       const r = (params.shapeBorderRadius || 0) * brScl;
       if (r > 0) {
-        drawRoundedRect2(ctx, w, h, r);
-        ctx.fill();
-        strokeRoundedRect(ctx, stroke, strokeWidth);
+        drawRoundedRect2(ctx2, w, h, r);
+        ctx2.fill();
+        strokeRoundedRect(ctx2, stroke, strokeWidth);
       } else {
-        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx2.fillRect(-w / 2, -h / 2, w, h);
         if (stroke && strokeWidth > 0) {
-          strokeAlignedRect(ctx, w, h, strokeWidth);
+          strokeAlignedRect(ctx2, w, h, strokeWidth);
         }
       }
       break;
@@ -18513,100 +18509,100 @@ function renderShapeElement(ctx, params, options) {
     case "roundedRect": {
       const rawR = (params.shapeBorderRadius || 0) * brScl;
       const r = rawR > 0 ? rawR : Math.min(w, h) * 0.1;
-      drawRoundedRect2(ctx, w, h, r);
-      ctx.fill();
-      strokeRoundedRect(ctx, stroke, strokeWidth);
+      drawRoundedRect2(ctx2, w, h, r);
+      ctx2.fill();
+      strokeRoundedRect(ctx2, stroke, strokeWidth);
       break;
     }
     // ─── 圆/椭圆 ───────────────────────────────────────────
     case "circle":
     case "ellipse": {
-      ctx.beginPath();
-      ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+      ctx2.fill();
       doStroke();
       break;
     }
     // ─── 三角形 ─────────────────────────────────────────────
     case "triangle": {
-      ctx.beginPath();
-      ctx.moveTo(0, -h / 2);
-      ctx.lineTo(w / 2, h / 2);
-      ctx.lineTo(-w / 2, h / 2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.moveTo(0, -h / 2);
+      ctx2.lineTo(w / 2, h / 2);
+      ctx2.lineTo(-w / 2, h / 2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     case "rightTriangle": {
-      ctx.beginPath();
-      ctx.moveTo(-w / 2, -h / 2);
-      ctx.lineTo(w / 2, h / 2);
-      ctx.lineTo(-w / 2, h / 2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.moveTo(-w / 2, -h / 2);
+      ctx2.lineTo(w / 2, h / 2);
+      ctx2.lineTo(-w / 2, h / 2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     // ─── 线条 ───────────────────────────────────────────────
     case "line": {
-      ctx.beginPath();
-      ctx.lineCap = "round";
+      ctx2.beginPath();
+      ctx2.lineCap = "round";
       const odd = (strokeWidth & 1) === 1;
-      const yOff = isAxisAligned(ctx) && odd ? 0.5 : 0;
-      ctx.moveTo(-w / 2, yOff);
-      ctx.lineTo(w / 2, yOff);
-      if (stroke && strokeWidth > 0) ctx.stroke();
+      const yOff = isAxisAligned(ctx2) && odd ? 0.5 : 0;
+      ctx2.moveTo(-w / 2, yOff);
+      ctx2.lineTo(w / 2, yOff);
+      if (stroke && strokeWidth > 0) ctx2.stroke();
       break;
     }
     // ─── 多边形 ─────────────────────────────────────────────
     case "polygon": {
       if (params.shapePoints && params.shapePoints.length) {
-        drawPolygonPoints(ctx, params.shapePoints, w, h);
+        drawPolygonPoints(ctx2, params.shapePoints, w, h);
       } else {
-        drawRegularPolygon(ctx, w, h, 5);
+        drawRegularPolygon(ctx2, w, h, 5);
       }
-      ctx.fill();
+      ctx2.fill();
       doStroke();
       break;
     }
     case "diamond": {
-      ctx.beginPath();
-      ctx.moveTo(0, -h / 2);
-      ctx.lineTo(w / 2, 0);
-      ctx.lineTo(0, h / 2);
-      ctx.lineTo(-w / 2, 0);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.moveTo(0, -h / 2);
+      ctx2.lineTo(w / 2, 0);
+      ctx2.lineTo(0, h / 2);
+      ctx2.lineTo(-w / 2, 0);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     case "pentagon": {
-      drawRegularPolygon(ctx, w, h, 5);
-      ctx.fill();
+      drawRegularPolygon(ctx2, w, h, 5);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "hexagon": {
-      drawRegularPolygon(ctx, w, h, 6);
-      ctx.fill();
+      drawRegularPolygon(ctx2, w, h, 6);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "octagon": {
-      drawRegularPolygon(ctx, w, h, 8);
-      ctx.fill();
+      drawRegularPolygon(ctx2, w, h, 8);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "parallelogram": {
-      ctx.beginPath();
-      ctx.moveTo(-w / 2 + w * 0.25, -h / 2);
-      ctx.lineTo(w / 2, -h / 2);
-      ctx.lineTo(w / 2 - w * 0.25, h / 2);
-      ctx.lineTo(-w / 2, h / 2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.moveTo(-w / 2 + w * 0.25, -h / 2);
+      ctx2.lineTo(w / 2, -h / 2);
+      ctx2.lineTo(w / 2 - w * 0.25, h / 2);
+      ctx2.lineTo(-w / 2, h / 2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
@@ -18614,313 +18610,313 @@ function renderShapeElement(ctx, params, options) {
     case "ring": {
       const R = Math.min(w, h) * 0.45;
       const r = R * 0.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, R, 0, Math.PI * 2);
-      ctx.moveTo(r, 0);
-      ctx.arc(0, 0, r, 0, Math.PI * 2, true);
-      fillEvenOdd(ctx);
+      ctx2.beginPath();
+      ctx2.arc(0, 0, R, 0, Math.PI * 2);
+      ctx2.moveTo(r, 0);
+      ctx2.arc(0, 0, r, 0, Math.PI * 2, true);
+      fillEvenOdd(ctx2);
       doStroke();
       break;
     }
     case "halfRing": {
       const outerR = w / 2;
       const innerR = outerR * 0.6;
-      ctx.beginPath();
-      ctx.arc(0, h / 2, outerR, Math.PI, 0, false);
-      ctx.lineTo(w / 2 - (outerR - innerR), h / 2);
-      ctx.arc(0, h / 2, innerR, 0, Math.PI, true);
-      ctx.lineTo(-w / 2 + (outerR - innerR), h / 2);
-      ctx.closePath();
-      fillEvenOdd(ctx);
+      ctx2.beginPath();
+      ctx2.arc(0, h / 2, outerR, Math.PI, 0, false);
+      ctx2.lineTo(w / 2 - (outerR - innerR), h / 2);
+      ctx2.arc(0, h / 2, innerR, 0, Math.PI, true);
+      ctx2.lineTo(-w / 2 + (outerR - innerR), h / 2);
+      ctx2.closePath();
+      fillEvenOdd(ctx2);
       doStroke();
       break;
     }
     // ─── 弧形 ───────────────────────────────────────────────
     case "semicircle": {
       const R = Math.min(w, h) / 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, R, Math.PI, 0);
-      ctx.lineTo(-R, 0);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.arc(0, 0, R, Math.PI, 0);
+      ctx2.lineTo(-R, 0);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     case "quarterCircle": {
       const R = Math.min(w, h);
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(-w / 2, h / 2 - R);
-      ctx.lineTo(-w / 2, h / 2);
-      ctx.arc(-w / 2, h / 2, R, Math.PI / 2, Math.PI);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.save();
+      ctx2.beginPath();
+      ctx2.moveTo(-w / 2, h / 2 - R);
+      ctx2.lineTo(-w / 2, h / 2);
+      ctx2.arc(-w / 2, h / 2, R, Math.PI / 2, Math.PI);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
-      ctx.restore();
+      ctx2.restore();
       break;
     }
     case "arch": {
       const R = w / 2;
-      ctx.beginPath();
-      ctx.moveTo(-w / 2, h / 2);
-      ctx.lineTo(-w / 2, 0);
-      ctx.arc(0, 0, R, Math.PI, 0, false);
-      ctx.lineTo(w / 2, h / 2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.moveTo(-w / 2, h / 2);
+      ctx2.lineTo(-w / 2, 0);
+      ctx2.arc(0, 0, R, Math.PI, 0, false);
+      ctx2.lineTo(w / 2, h / 2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     // ─── 箭头 ───────────────────────────────────────────────
     case "rightArrow": {
-      ctx.beginPath();
+      ctx2.beginPath();
       const y1 = -h / 2 + h / 3;
       const y2 = -h / 2 + 2 * h / 3;
-      ctx.moveTo(-w / 2, y1);
-      ctx.lineTo(-w / 2 + 0.6 * w, y1);
-      ctx.lineTo(-w / 2 + 0.6 * w, -h / 2);
-      ctx.lineTo(w / 2, 0);
-      ctx.lineTo(-w / 2 + 0.6 * w, h / 2);
-      ctx.lineTo(-w / 2 + 0.6 * w, y2);
-      ctx.lineTo(-w / 2, y2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.moveTo(-w / 2, y1);
+      ctx2.lineTo(-w / 2 + 0.6 * w, y1);
+      ctx2.lineTo(-w / 2 + 0.6 * w, -h / 2);
+      ctx2.lineTo(w / 2, 0);
+      ctx2.lineTo(-w / 2 + 0.6 * w, h / 2);
+      ctx2.lineTo(-w / 2 + 0.6 * w, y2);
+      ctx2.lineTo(-w / 2, y2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     case "upArrow": {
-      ctx.beginPath();
+      ctx2.beginPath();
       const yMid = -h / 2 + 0.4 * h;
-      ctx.moveTo(-w / 2 + w / 3, h / 2);
-      ctx.lineTo(-w / 2 + w / 3, yMid);
-      ctx.lineTo(-w / 2, yMid);
-      ctx.lineTo(0, -h / 2);
-      ctx.lineTo(w / 2, yMid);
-      ctx.lineTo(-w / 2 + 2 * w / 3, yMid);
-      ctx.lineTo(-w / 2 + 2 * w / 3, h / 2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.moveTo(-w / 2 + w / 3, h / 2);
+      ctx2.lineTo(-w / 2 + w / 3, yMid);
+      ctx2.lineTo(-w / 2, yMid);
+      ctx2.lineTo(0, -h / 2);
+      ctx2.lineTo(w / 2, yMid);
+      ctx2.lineTo(-w / 2 + 2 * w / 3, yMid);
+      ctx2.lineTo(-w / 2 + 2 * w / 3, h / 2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     case "downArrow": {
-      ctx.beginPath();
+      ctx2.beginPath();
       const yMid = -h / 2 + 0.6 * h;
-      ctx.moveTo(-w / 2 + w / 3, -h / 2);
-      ctx.lineTo(-w / 2 + w / 3, yMid);
-      ctx.lineTo(-w / 2, yMid);
-      ctx.lineTo(0, h / 2);
-      ctx.lineTo(w / 2, yMid);
-      ctx.lineTo(-w / 2 + 2 * w / 3, yMid);
-      ctx.lineTo(-w / 2 + 2 * w / 3, -h / 2);
-      ctx.closePath();
-      ctx.fill();
+      ctx2.moveTo(-w / 2 + w / 3, -h / 2);
+      ctx2.lineTo(-w / 2 + w / 3, yMid);
+      ctx2.lineTo(-w / 2, yMid);
+      ctx2.lineTo(0, h / 2);
+      ctx2.lineTo(w / 2, yMid);
+      ctx2.lineTo(-w / 2 + 2 * w / 3, yMid);
+      ctx2.lineTo(-w / 2 + 2 * w / 3, -h / 2);
+      ctx2.closePath();
+      ctx2.fill();
       doStroke();
       break;
     }
     // ─── 十字/线条图形 ──────────────────────────────────────
     case "cross": {
-      ctx.save();
-      ctx.strokeStyle = fill;
-      ctx.lineCap = "round";
-      ctx.lineWidth = Math.max(strokeWidth || 1, 6);
+      ctx2.save();
+      ctx2.strokeStyle = fill;
+      ctx2.lineCap = "round";
+      ctx2.lineWidth = Math.max(strokeWidth || 1, 6);
       const s = Math.min(w, h) * 0.6;
-      ctx.beginPath();
-      ctx.moveTo(-s / 2, -s / 2);
-      ctx.lineTo(s / 2, s / 2);
-      ctx.moveTo(s / 2, -s / 2);
-      ctx.lineTo(-s / 2, s / 2);
-      ctx.stroke();
-      ctx.restore();
+      ctx2.beginPath();
+      ctx2.moveTo(-s / 2, -s / 2);
+      ctx2.lineTo(s / 2, s / 2);
+      ctx2.moveTo(s / 2, -s / 2);
+      ctx2.lineTo(-s / 2, s / 2);
+      ctx2.stroke();
+      ctx2.restore();
       break;
     }
     case "wave": {
-      ctx.save();
-      ctx.beginPath();
-      ctx.strokeStyle = fill;
-      ctx.lineCap = "round";
-      ctx.lineWidth = Math.max(strokeWidth || 1, 6);
-      ctx.moveTo(-w / 2, 0);
-      ctx.quadraticCurveTo(-w / 4, -h * 0.3, 0, 0);
-      ctx.quadraticCurveTo(w / 4, h * 0.3, w / 2, 0);
-      ctx.stroke();
-      ctx.restore();
+      ctx2.save();
+      ctx2.beginPath();
+      ctx2.strokeStyle = fill;
+      ctx2.lineCap = "round";
+      ctx2.lineWidth = Math.max(strokeWidth || 1, 6);
+      ctx2.moveTo(-w / 2, 0);
+      ctx2.quadraticCurveTo(-w / 4, -h * 0.3, 0, 0);
+      ctx2.quadraticCurveTo(w / 4, h * 0.3, w / 2, 0);
+      ctx2.stroke();
+      ctx2.restore();
       break;
     }
     case "plus": {
       const t = Math.min(w, h) / 6;
-      ctx.beginPath();
-      ctx.rect(-w * 0.4, -t / 2, w * 0.8, t);
-      ctx.rect(-t / 2, -h * 0.4, t, h * 0.8);
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.rect(-w * 0.4, -t / 2, w * 0.8, t);
+      ctx2.rect(-t / 2, -h * 0.4, t, h * 0.8);
+      ctx2.fill();
       doStroke();
       break;
     }
     // ─── 星形 ───────────────────────────────────────────────
     case "star": {
-      drawStar(ctx, w, h, 5, 0.9, 0.4, -Math.PI / 2);
-      ctx.fill();
+      drawStar(ctx2, w, h, 5, 0.9, 0.4, -Math.PI / 2);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "fourPointStar": {
-      drawStar(ctx, w, h, 4, 0.9, 0.3, 0);
-      ctx.fill();
+      drawStar(ctx2, w, h, 4, 0.9, 0.3, 0);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "sixPointStar": {
-      drawStar(ctx, w, h, 6, 0.9, 0.4, -Math.PI / 2);
-      ctx.fill();
+      drawStar(ctx2, w, h, 6, 0.9, 0.4, -Math.PI / 2);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "eightPointStar": {
-      drawStar(ctx, w, h, 8, 0.9, 0.4, -Math.PI / 2);
-      ctx.fill();
+      drawStar(ctx2, w, h, 8, 0.9, 0.4, -Math.PI / 2);
+      ctx2.fill();
       doStroke();
       break;
     }
     case "sunBurst": {
       const innerR = Math.min(w, h) / 4;
       const outerR = Math.min(w, h) / 2 * 0.9;
-      ctx.beginPath();
-      ctx.arc(0, 0, innerR, 0, Math.PI * 2);
-      ctx.fill();
+      ctx2.beginPath();
+      ctx2.arc(0, 0, innerR, 0, Math.PI * 2);
+      ctx2.fill();
       doStroke();
-      ctx.save();
-      ctx.strokeStyle = fill;
-      ctx.lineCap = "round";
-      ctx.lineWidth = Math.max(strokeWidth || 1, 3);
-      ctx.beginPath();
+      ctx2.save();
+      ctx2.strokeStyle = fill;
+      ctx2.lineCap = "round";
+      ctx2.lineWidth = Math.max(strokeWidth || 1, 3);
+      ctx2.beginPath();
       for (let i = 0; i < 16; i++) {
         const ang = i * Math.PI / 8;
         const x1 = Math.cos(ang) * innerR;
         const y1 = Math.sin(ang) * innerR;
         const x2 = Math.cos(ang) * outerR;
         const y2 = Math.sin(ang) * outerR;
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
+        ctx2.moveTo(x1, y1);
+        ctx2.lineTo(x2, y2);
       }
-      ctx.stroke();
-      ctx.restore();
+      ctx2.stroke();
+      ctx2.restore();
       break;
     }
     // ─── 默认 ───────────────────────────────────────────────
     default: {
       if (params.shapePoints && params.shapePoints.length) {
-        drawPolygonPoints(ctx, params.shapePoints, w, h);
-        ctx.fill();
+        drawPolygonPoints(ctx2, params.shapePoints, w, h);
+        ctx2.fill();
         doStroke();
       } else {
-        ctx.fillRect(-w / 2, -h / 2, w, h);
-        if (stroke && strokeWidth > 0) ctx.strokeRect(-w / 2, -h / 2, w, h);
+        ctx2.fillRect(-w / 2, -h / 2, w, h);
+        if (stroke && strokeWidth > 0) ctx2.strokeRect(-w / 2, -h / 2, w, h);
       }
       break;
     }
   }
 }
-function isAxisAligned(ctx) {
+function isAxisAligned(ctx2) {
   try {
-    const t = ctx.getTransform();
+    const t = ctx2.getTransform();
     return Math.abs(t.b) < 1e-3 && Math.abs(t.c) < 1e-3 && Math.abs(t.a - 1) < 1e-3 && Math.abs(t.d - 1) < 1e-3;
   } catch {
     return false;
   }
 }
-function applyPixelSnap(ctx) {
+function applyPixelSnap(ctx2) {
   try {
-    const t = ctx.getTransform();
+    const t = ctx2.getTransform();
     if (Math.abs(t.b) < 1e-3 && Math.abs(t.c) < 1e-3 && Math.abs(t.a - 1) < 1e-3 && Math.abs(t.d - 1) < 1e-3) {
       const dx = Math.round(t.e) - t.e;
       const dy = Math.round(t.f) - t.f;
       if (Math.abs(dx) > 1e-3 || Math.abs(dy) > 1e-3) {
-        ctx.translate(dx, dy);
+        ctx2.translate(dx, dy);
       }
     }
   } catch {
   }
 }
-function drawRoundedRect2(ctx, w, h, r) {
+function drawRoundedRect2(ctx2, w, h, r) {
   const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
   const x = -w / 2;
   const y = -h / 2;
-  ctx.beginPath();
+  ctx2.beginPath();
   if (rr > 0) {
-    ctx.moveTo(x + rr, y);
-    ctx.lineTo(x + w - rr, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-    ctx.lineTo(x + w, y + h - rr);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-    ctx.lineTo(x + rr, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-    ctx.lineTo(x, y + rr);
-    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx2.moveTo(x + rr, y);
+    ctx2.lineTo(x + w - rr, y);
+    ctx2.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx2.lineTo(x + w, y + h - rr);
+    ctx2.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx2.lineTo(x + rr, y + h);
+    ctx2.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx2.lineTo(x, y + rr);
+    ctx2.quadraticCurveTo(x, y, x + rr, y);
   } else {
-    ctx.rect(x, y, w, h);
+    ctx2.rect(x, y, w, h);
   }
 }
-function strokeRoundedRect(ctx, stroke, strokeWidth) {
+function strokeRoundedRect(ctx2, stroke, strokeWidth) {
   if (!stroke || strokeWidth <= 0) return;
   const odd = (strokeWidth & 1) === 1;
-  if (isAxisAligned(ctx) && odd) {
-    ctx.save();
-    ctx.translate(0.5, 0.5);
-    ctx.stroke();
-    ctx.restore();
+  if (isAxisAligned(ctx2) && odd) {
+    ctx2.save();
+    ctx2.translate(0.5, 0.5);
+    ctx2.stroke();
+    ctx2.restore();
   } else {
-    ctx.stroke();
+    ctx2.stroke();
   }
 }
-function strokeAlignedRect(ctx, w, h, strokeWidth) {
+function strokeAlignedRect(ctx2, w, h, strokeWidth) {
   const odd = (strokeWidth & 1) === 1;
-  if (isAxisAligned(ctx) && odd) {
-    ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+  if (isAxisAligned(ctx2) && odd) {
+    ctx2.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
   } else {
-    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx2.strokeRect(-w / 2, -h / 2, w, h);
   }
 }
-function drawRegularPolygon(ctx, w, h, sides) {
+function drawRegularPolygon(ctx2, w, h, sides) {
   const R = Math.min(w, h) / 2;
-  ctx.beginPath();
+  ctx2.beginPath();
   for (let i = 0; i < sides; i++) {
     const ang = -Math.PI / 2 + i * 2 * Math.PI / sides;
     const x = Math.cos(ang) * R;
     const y = Math.sin(ang) * R;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    if (i === 0) ctx2.moveTo(x, y);
+    else ctx2.lineTo(x, y);
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function drawPolygonPoints(ctx, points, w, h) {
+function drawPolygonPoints(ctx2, points, w, h) {
   if (points.length < 2) return;
-  ctx.beginPath();
-  ctx.moveTo(points[0].x - w / 2, points[0].y - h / 2);
+  ctx2.beginPath();
+  ctx2.moveTo(points[0].x - w / 2, points[0].y - h / 2);
   for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x - w / 2, points[i].y - h / 2);
+    ctx2.lineTo(points[i].x - w / 2, points[i].y - h / 2);
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function drawStar(ctx, w, h, numPoints, outerRatio, innerRatio, startAngle) {
+function drawStar(ctx2, w, h, numPoints, outerRatio, innerRatio, startAngle) {
   const outerR = Math.min(w, h) / 2 * outerRatio;
   const innerR = outerR * innerRatio;
   const totalPoints = numPoints * 2;
-  ctx.beginPath();
+  ctx2.beginPath();
   for (let i = 0; i < totalPoints; i++) {
     const ang = startAngle + i * Math.PI / numPoints;
     const r = i % 2 === 0 ? outerR : innerR;
     const x = Math.cos(ang) * r;
     const y = Math.sin(ang) * r;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    if (i === 0) ctx2.moveTo(x, y);
+    else ctx2.lineTo(x, y);
   }
-  ctx.closePath();
+  ctx2.closePath();
 }
-function fillEvenOdd(ctx) {
+function fillEvenOdd(ctx2) {
   try {
-    ctx.fill("evenodd");
+    ctx2.fill("evenodd");
   } catch {
-    ctx.fill();
+    ctx2.fill();
   }
 }
 
@@ -19106,7 +19102,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * Opt 1: 将 activeElementsByFrame 转为 [trackIndex, elementIndex] 索引对，
    * 序列化进 WorkerSession 传递给 Workers，避免各 Worker 重复重建该表。
    */
-  buildActiveFrameIndices(activeElementsByFrame, renderTracks) {
+  buildActiveFrameIndices(activeElementsByFrame2, renderTracks) {
     const idToIndex = /* @__PURE__ */ new Map();
     for (let ti = 0; ti < renderTracks.length; ti++) {
       const elements = renderTracks[ti].elements;
@@ -19114,7 +19110,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
         idToIndex.set(elements[ei].id, [ti, ei]);
       }
     }
-    return activeElementsByFrame.map(
+    return activeElementsByFrame2.map(
       (frameEntries) => frameEntries.map(({ element }) => idToIndex.get(element.id)).filter((pair) => pair !== void 0)
     );
   }
@@ -19123,14 +19119,14 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * 返回 videoLocalPath → { cacheKeys, mediaTimes } 映射，
    * 供微批处理预提取或 batchPreExtract 调用。
    */
-  buildVideoFrameBatchForWindow(startFrame, endFrame, activeElementsByFrame, fps, resolvedPaths) {
+  buildVideoFrameBatchForWindow(startFrame, endFrame, activeElementsByFrame2, fps, resolvedPaths2) {
     const result = /* @__PURE__ */ new Map();
-    const end = Math.min(endFrame, activeElementsByFrame.length);
+    const end = Math.min(endFrame, activeElementsByFrame2.length);
     for (let fi = startFrame; fi < end; fi++) {
       const time = fi / fps;
-      for (const { element } of activeElementsByFrame[fi]) {
+      for (const { element } of activeElementsByFrame2[fi]) {
         if (element.type !== "video" || !element.src) continue;
-        const localPath = resolvedPaths.get(element.src);
+        const localPath = resolvedPaths2.get(element.src);
         if (!localPath) continue;
         const localTimeRaw = time - element.startTime + element.trimStart;
         const visibleDuration = Math.max(
@@ -19185,32 +19181,32 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * 渲染单帧到 ctx（不含 toBufferSync / encoder.stdin.write）。
    * 串行路径和 Worker Thread 并行路径均调用此方法。
    */
-  async renderFrameToBuffer(frameIndex, fps, ctx, outWidth, outHeight, canvasWidth, canvasHeight, scaleX, scaleY, activeElements, transitions, renderTracks, captions, captionStyle, captionAnimation, backgroundColor, backgroundType, blurIntensity, resolvedPaths, imageLoader, videoExtractor, blurOffCanvas, blurOffCtx, totalFrames, totalDuration, timeOverride) {
-    const time = timeOverride !== void 0 ? timeOverride : totalFrames !== void 0 && totalDuration !== void 0 && frameIndex === totalFrames - 1 ? totalDuration : frameIndex / fps;
-    ctx.clearRect(0, 0, outWidth, outHeight);
+  async renderFrameToBuffer(frameIndex, fps, ctx2, outWidth, outHeight, canvasWidth, canvasHeight, scaleX, scaleY, activeElements, transitions, renderTracks, captions, captionStyle, captionAnimation, backgroundColor, backgroundType, blurIntensity, resolvedPaths2, imageLoader2, videoExtractor2, blurOffCanvas2, blurOffCtx2, totalFrames, totalDuration2, timeOverride) {
+    const time = timeOverride !== void 0 ? timeOverride : totalFrames !== void 0 && totalDuration2 !== void 0 && frameIndex === totalFrames - 1 ? totalDuration2 : frameIndex / fps;
+    ctx2.clearRect(0, 0, outWidth, outHeight);
     if (backgroundType !== "blur") {
       const bg = backgroundColor || "#000000";
       if (bg.includes("gradient")) {
-        this.drawGradientBackground(ctx, outWidth, outHeight, bg);
+        this.drawGradientBackground(ctx2, outWidth, outHeight, bg);
       } else {
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, outWidth, outHeight);
+        ctx2.fillStyle = bg;
+        ctx2.fillRect(0, 0, outWidth, outHeight);
       }
     }
     if (backgroundType === "blur") {
       try {
         await this.renderBlurBackground(
-          ctx,
+          ctx2,
           outWidth,
           outHeight,
           activeElements,
           time,
           blurIntensity * Math.sqrt(scaleX * scaleY),
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
-          blurOffCanvas,
-          blurOffCtx
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
+          blurOffCanvas2,
+          blurOffCtx2
         );
       } catch (err) {
         console.warn(
@@ -19236,12 +19232,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
       if (time < elStart || time > elEnd) continue;
       try {
         await this.renderElement(
-          ctx,
+          ctx2,
           element,
           time,
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
           scaleX,
           scaleY,
           canvasWidth,
@@ -19257,13 +19253,13 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (activeTransition) {
       try {
         await this._renderTransitionFrame(
-          ctx,
+          ctx2,
           activeTransition,
           activeElements,
           time,
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
           scaleX,
           scaleY,
           canvasWidth,
@@ -19281,7 +19277,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (captions && captions.length > 0) {
       try {
         this.renderCaptionsOverlay(
-          ctx,
+          ctx2,
           outWidth,
           outHeight,
           time,
@@ -19303,7 +19299,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       try {
         const resolvedEffects = this.resolveEffectElements(activeEffects, time);
         if (resolvedEffects.length > 0) {
-          this.applyGlobalEffects(ctx, outWidth, outHeight, resolvedEffects);
+          this.applyGlobalEffects(ctx2, outWidth, outHeight, resolvedEffects);
         }
       } catch (err) {
         console.warn(
@@ -19351,7 +19347,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       animations,
       keyframeTracks
     );
-    const totalDuration = (() => {
+    const totalDuration2 = (() => {
       if (maxTime > 0) return maxTime / 1e3;
       const tracksDuration = DataConverter.calculateTotalDuration(renderTracks);
       const captionsDuration = captions.length > 0 ? Math.max(
@@ -19360,19 +19356,19 @@ var ServerRenderExporter = class _ServerRenderExporter {
       ) : 0;
       return Math.max(tracksDuration, captionsDuration);
     })();
-    const totalFrames = Math.ceil(totalDuration * fps);
+    const totalFrames = Math.ceil(totalDuration2 * fps);
     if (totalFrames <= 0) {
       throw new Error(
         `No frames to render (duration = 0). Check that tracks contain elements with non-zero timeFrame, or that maxTime > 0.`
       );
     }
     console.log(
-      `[ServerRenderExporter] Rendering ${totalFrames} frames at ${fps}fps, ${outWidth}x${outHeight}, duration=${totalDuration.toFixed(2)}s`
+      `[ServerRenderExporter] Rendering ${totalFrames} frames at ${fps}fps, ${outWidth}x${outHeight}, duration=${totalDuration2.toFixed(2)}s`
     );
     onProgress?.(2, "Downloading media assets");
     const mediaResolver = new MediaResolver();
-    const imageLoader = new ServerImageLoader();
-    const videoExtractor = new ServerVideoFrameExtractor();
+    const imageLoader2 = new ServerImageLoader();
+    const videoExtractor2 = new ServerVideoFrameExtractor();
     const mediaSrcs = /* @__PURE__ */ new Set();
     const videoSrcs = /* @__PURE__ */ new Set();
     for (const track of renderTracks) {
@@ -19386,7 +19382,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
         }
       }
     }
-    const resolvedPaths = /* @__PURE__ */ new Map();
+    const resolvedPaths2 = /* @__PURE__ */ new Map();
     const allSrcs = [...mediaSrcs, ...videoSrcs];
     const DOWNLOAD_CONCURRENCY = 6;
     for (let i = 0; i < allSrcs.length; i += DOWNLOAD_CONCURRENCY) {
@@ -19399,10 +19395,10 @@ var ServerRenderExporter = class _ServerRenderExporter {
       );
       for (const result of results) {
         if (result.status === "fulfilled") {
-          resolvedPaths.set(result.value.src, result.value.localPath);
+          resolvedPaths2.set(result.value.src, result.value.localPath);
           if (mediaSrcs.has(result.value.src)) {
             try {
-              await imageLoader.load(result.value.localPath);
+              await imageLoader2.load(result.value.localPath);
             } catch (err) {
               console.warn(
                 `[ServerRenderExporter] Failed to load image: ${result.value.src}`,
@@ -19420,8 +19416,8 @@ var ServerRenderExporter = class _ServerRenderExporter {
     }
     onProgress?.(5, "Preparing render environment");
     const useParallel = os5.cpus().length >= 3 && totalFrames >= 60 && !process.env.DISABLE_WORKER_THREADS;
-    const canvas = new Canvas(outWidth, outHeight);
-    const ctx = canvas.getContext("2d");
+    const canvas2 = new Canvas(outWidth, outHeight);
+    const ctx2 = canvas2.getContext("2d");
     const workDir = path5.join(
       os5.tmpdir(),
       `video-export-${crypto.randomUUID()}`
@@ -19429,8 +19425,8 @@ var ServerRenderExporter = class _ServerRenderExporter {
     fs5.mkdirSync(workDir, { recursive: true });
     const scaleX = outWidth / canvasWidth;
     const scaleY = outHeight / canvasHeight;
-    const blurOffCanvas = backgroundType === "blur" ? new Canvas(outWidth, outHeight) : null;
-    const blurOffCtx = blurOffCanvas?.getContext("2d") ?? null;
+    const blurOffCanvas2 = backgroundType === "blur" ? new Canvas(outWidth, outHeight) : null;
+    const blurOffCtx2 = blurOffCanvas2?.getContext("2d") ?? null;
     this.initializeCaches();
     const extendBefore = /* @__PURE__ */ new Map();
     const extendAfter = /* @__PURE__ */ new Map();
@@ -19443,7 +19439,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
         extendBefore.set(t.targetElementId, Math.max(prevBefore, halfDur));
       }
     }
-    const activeElementsByFrame = [];
+    const activeElementsByFrame2 = [];
     for (let i = 0; i < totalFrames; i++) {
       const time = i / fps;
       const active = [];
@@ -19461,7 +19457,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
           }
         }
       }
-      activeElementsByFrame.push(active);
+      activeElementsByFrame2.push(active);
     }
     let videoFrameDiskPaths = /* @__PURE__ */ new Map();
     let videoFramesDiskDir = "";
@@ -19471,15 +19467,15 @@ var ServerRenderExporter = class _ServerRenderExporter {
     }
     if (videoSrcs.size > 0) {
       onProgress?.(5, "Pre-extracting video frames");
-      videoExtractor.setCacheLimit(
+      videoExtractor2.setCacheLimit(
         Math.max(300, Math.min(5e3, totalFrames + 100))
       );
       const videoFrameMap = /* @__PURE__ */ new Map();
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
         const time = frameIndex / fps;
-        for (const { element } of activeElementsByFrame[frameIndex]) {
+        for (const { element } of activeElementsByFrame2[frameIndex]) {
           if (element.type !== "video" || !element.src) continue;
-          const localPath = resolvedPaths.get(element.src);
+          const localPath = resolvedPaths2.get(element.src);
           if (!localPath) continue;
           const localTimeRaw = time - element.startTime + element.trimStart;
           const visibleDuration = Math.max(
@@ -19517,7 +19513,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
             return async () => {
               const videoDir = path5.join(videoFramesDiskDir, `v${videoIdx}`);
               fs5.mkdirSync(videoDir, { recursive: true });
-              const diskPaths = await videoExtractor.batchPreExtractToDisk(
+              const diskPaths = await videoExtractor2.batchPreExtractToDisk(
                 videoPath,
                 indices.map((i) => cacheKeys[i]),
                 indices.map((i) => mediaTimes[i]),
@@ -19533,7 +19529,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
               for (const [k, v] of diskPaths) videoFrameDiskPaths.set(k, v);
             };
           } else {
-            return () => videoExtractor.batchPreExtract(
+            return () => videoExtractor2.batchPreExtract(
               videoPath,
               indices.map((i) => cacheKeys[i]),
               indices.map((i) => mediaTimes[i]),
@@ -19565,7 +19561,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     for (const track of renderTracks) {
       for (const el of track.elements) {
         if ((el.type === "video" || el.type === "audio") && el.src && !el.muted) {
-          const resolvedSrc = resolvedPaths.get(el.src) || el.src;
+          const resolvedSrc = resolvedPaths2.get(el.src) || el.src;
           let effectiveSpeed = el.playbackSpeed ?? 1;
           const speedCalc = this.getSpeedCalc(el);
           if (speedCalc) {
@@ -19616,7 +19612,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     let audioPromise = Promise.resolve(null);
     if (audioTracks.length > 0) {
       const audioTarget = path5.join(workDir, "audio.wav");
-      audioPromise = audioExtractor.mixAudioTracks(audioTracks, totalDuration, audioTarget).catch((err) => {
+      audioPromise = audioExtractor.mixAudioTracks(audioTracks, totalDuration2, audioTarget).catch((err) => {
         console.warn("[ServerRenderExporter] Audio extraction failed:", err);
         return null;
       });
@@ -19662,7 +19658,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       const renderOneFrameSerial = async (frameIndex) => {
         let frameBuffer;
         if (motionBlur) {
-          const nominalTime = frameIndex === totalFrames - 1 ? totalDuration : frameIndex / fps;
+          const nominalTime = frameIndex === totalFrames - 1 ? totalDuration2 : frameIndex / fps;
           const samples = calculateMotionBlurSamples(
             nominalTime,
             1 / fps,
@@ -19678,14 +19674,14 @@ var ServerRenderExporter = class _ServerRenderExporter {
             await this.renderFrameToBuffer(
               frameIndex,
               fps,
-              ctx,
+              ctx2,
               outWidth,
               outHeight,
               canvasWidth,
               canvasHeight,
               scaleX,
               scaleY,
-              activeElementsByFrame[frameIndex],
+              activeElementsByFrame2[frameIndex],
               transitions,
               renderTracks,
               captions,
@@ -19694,17 +19690,17 @@ var ServerRenderExporter = class _ServerRenderExporter {
               backgroundColor,
               backgroundType === "blur" ? "blur" : void 0,
               blurIntensity,
-              resolvedPaths,
-              imageLoader,
-              videoExtractor,
-              blurOffCanvas,
-              blurOffCtx,
+              resolvedPaths2,
+              imageLoader2,
+              videoExtractor2,
+              blurOffCanvas2,
+              blurOffCtx2,
               totalFrames,
-              totalDuration,
+              totalDuration2,
               sample.time
               // timeOverride
             );
-            const raw = canvas.toBufferSync("raw");
+            const raw = canvas2.toBufferSync("raw");
             accumulateSubFrame(
               this._motionBlurAccBuffer,
               new Uint8ClampedArray(raw.buffer, raw.byteOffset, raw.byteLength),
@@ -19723,14 +19719,14 @@ var ServerRenderExporter = class _ServerRenderExporter {
           await this.renderFrameToBuffer(
             frameIndex,
             fps,
-            ctx,
+            ctx2,
             outWidth,
             outHeight,
             canvasWidth,
             canvasHeight,
             scaleX,
             scaleY,
-            activeElementsByFrame[frameIndex],
+            activeElementsByFrame2[frameIndex],
             transitions,
             renderTracks,
             captions,
@@ -19739,15 +19735,15 @@ var ServerRenderExporter = class _ServerRenderExporter {
             backgroundColor,
             backgroundType === "blur" ? "blur" : void 0,
             blurIntensity,
-            resolvedPaths,
-            imageLoader,
-            videoExtractor,
-            blurOffCanvas,
-            blurOffCtx,
+            resolvedPaths2,
+            imageLoader2,
+            videoExtractor2,
+            blurOffCanvas2,
+            blurOffCtx2,
             totalFrames,
-            totalDuration
+            totalDuration2
           );
-          frameBuffer = canvas.toBufferSync("raw");
+          frameBuffer = canvas2.toBufferSync("raw");
         }
         if (encoderError) throw encoderError;
         const canWrite = encoder.stdin.write(frameBuffer);
@@ -19767,13 +19763,13 @@ var ServerRenderExporter = class _ServerRenderExporter {
         const batchMap = this.buildVideoFrameBatchForWindow(
           frameIndex,
           frameIndex + MICRO_LOOK_AHEAD,
-          activeElementsByFrame,
+          activeElementsByFrame2,
           fps,
-          resolvedPaths
+          resolvedPaths2
         );
         await Promise.all(
           [...batchMap.entries()].map(
-            ([videoPath, { cacheKeys, mediaTimes }]) => videoExtractor.batchPreExtract(videoPath, cacheKeys, mediaTimes).catch((err) => {
+            ([videoPath, { cacheKeys, mediaTimes }]) => videoExtractor2.batchPreExtract(videoPath, cacheKeys, mediaTimes).catch((err) => {
               console.debug(
                 `[microPrefetch] batchPreExtract failed for ${videoPath}: ${err?.message ?? err}`
               );
@@ -19799,15 +19795,15 @@ var ServerRenderExporter = class _ServerRenderExporter {
               scaleY,
               fps,
               totalFrames,
-              totalDuration,
+              totalDuration: totalDuration2,
               backgroundColor,
               backgroundType: backgroundType === "blur" ? "blur" : void 0,
               blurIntensity,
-              resolvedPaths: Object.fromEntries(resolvedPaths),
+              resolvedPaths: Object.fromEntries(resolvedPaths2),
               videoFrameDiskPaths: Object.fromEntries(videoFrameDiskPaths),
               // Opt 1: 预建索引表，Workers 无需重算
               activeElementIndices: this.buildActiveFrameIndices(
-                activeElementsByFrame,
+                activeElementsByFrame2,
                 renderTracks
               ),
               // Opt 2: 运动模糊配置
@@ -19835,7 +19831,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
             parallelErr
           );
           for (const [key, filePath] of videoFrameDiskPaths) {
-            await videoExtractor.preloadFrameFromDisk(key, filePath);
+            await videoExtractor2.preloadFrameFromDisk(key, filePath);
           }
           for (let fi = 0; fi < totalFrames; fi++) {
             await microPrefetch(fi);
@@ -19850,10 +19846,10 @@ var ServerRenderExporter = class _ServerRenderExporter {
       }
       if (encoderError) throw encoderError;
       encoder.stdin.end();
-      await new Promise((resolve3, reject) => {
+      await new Promise((resolve2, reject) => {
         encoder.on("close", (code) => {
           if (code === 0) {
-            resolve3();
+            resolve2();
           } else {
             reject(
               encoderError || new Error(`FFmpeg pipe encoding failed (code ${code})`)
@@ -19897,8 +19893,8 @@ var ServerRenderExporter = class _ServerRenderExporter {
         }
       } catch {
       }
-      imageLoader.clear();
-      videoExtractor.clear();
+      imageLoader2.clear();
+      videoExtractor2.clear();
       mediaResolver.cleanup();
       this.gifCache.clear();
       this._effectOffscreenCache.clear();
@@ -19918,7 +19914,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * 合并视频和音频轨道（FFmpeg mux）
    */
   muxVideoAudio(videoPath, audioPath, outputPath) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const proc = spawnProcess(
         "ffmpeg",
         [
@@ -19946,7 +19942,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
         (err) => reject(new Error(`FFmpeg mux error: ${err.message}`))
       );
       proc.on("close", (code) => {
-        if (code === 0) resolve3();
+        if (code === 0) resolve2();
         else
           reject(
             new Error(
@@ -19998,7 +19994,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * 3. 对 rawProgress 施加缓动函数
    * 4. blur/pixelate 类型走增强路径（CSS filter blur / 降采样像素化）
    */
-  async _renderTransitionFrame(ctx, active, activeElements, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight, outWidth, outHeight) {
+  async _renderTransitionFrame(ctx2, active, activeElements, time, resolvedPaths2, imageLoader2, videoExtractor2, scaleX, scaleY, canvasWidth, canvasHeight, outWidth, outHeight) {
     const { zone } = active;
     const timeMs = time * 1e3;
     const sourceEntry = activeElements.find(
@@ -20010,12 +20006,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (!sourceEntry || !targetEntry) {
       if (sourceEntry) {
         await this.renderElement(
-          ctx,
+          ctx2,
           sourceEntry.element,
           time,
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
           scaleX,
           scaleY,
           canvasWidth,
@@ -20024,12 +20020,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
       }
       if (targetEntry) {
         await this.renderElement(
-          ctx,
+          ctx2,
           targetEntry.element,
           time,
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
           scaleX,
           scaleY,
           canvasWidth,
@@ -20057,9 +20053,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
       ctxA,
       sourceForRender,
       sourceTime,
-      resolvedPaths,
-      imageLoader,
-      videoExtractor,
+      resolvedPaths2,
+      imageLoader2,
+      videoExtractor2,
       scaleX,
       scaleY,
       canvasWidth,
@@ -20070,9 +20066,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
       ctxB,
       targetForRender,
       targetTime,
-      resolvedPaths,
-      imageLoader,
-      videoExtractor,
+      resolvedPaths2,
+      imageLoader2,
+      videoExtractor2,
       scaleX,
       scaleY,
       canvasWidth,
@@ -20086,7 +20082,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (zone.type === "blur") {
       const exportScale = Math.sqrt(scaleX * scaleY);
       this._renderBlurTransition(
-        ctx,
+        ctx2,
         canvasA,
         canvasB,
         outWidth,
@@ -20099,7 +20095,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (zone.type === "pixelate") {
       const exportScale = Math.sqrt(scaleX * scaleY);
       this._renderPixelateTransition(
-        ctx,
+        ctx2,
         canvasA,
         canvasB,
         outWidth,
@@ -20112,7 +20108,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (zone.type === "crossZoom") {
       const exportScale = Math.sqrt(scaleX * scaleY);
       this._renderCrossZoomTransition(
-        ctx,
+        ctx2,
         canvasA,
         canvasB,
         outWidth,
@@ -20125,7 +20121,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if (zone.type === "whipPan") {
       const exportScale = Math.sqrt(scaleX * scaleY);
       this._renderWhipPanTransition(
-        ctx,
+        ctx2,
         canvasA,
         canvasB,
         outWidth,
@@ -20137,7 +20133,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     }
     applyTransitionBlend(
       zone.type,
-      ctx,
+      ctx2,
       canvasA,
       canvasB,
       outWidth,
@@ -20162,33 +20158,33 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * blur 转场增强渲染：CSS filter blur，模糊强度在 progress=0.5 时达到峰值
    * 与前端 TimelineRenderer.renderBlurTransition 保持一致
    */
-  _renderBlurTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+  _renderBlurTransition(ctx2, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
     const p = progress;
     const maxBlur = 20 * exportScale;
     const blurAmount = maxBlur * (1 - Math.abs(p * 2 - 1));
     const filterStr = blurAmount > 0.5 ? `blur(${blurAmount}px)` : "none";
-    ctx.save();
-    ctx.globalAlpha = 1 - p;
+    ctx2.save();
+    ctx2.globalAlpha = 1 - p;
     try {
-      ctx.filter = filterStr;
+      ctx2.filter = filterStr;
     } catch {
     }
-    ctx.drawImage(srcCanvas, 0, 0, w, h);
-    ctx.restore();
+    ctx2.drawImage(srcCanvas, 0, 0, w, h);
+    ctx2.restore();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
-    ctx.save();
-    ctx.globalAlpha = p;
+    ctx2.save();
+    ctx2.globalAlpha = p;
     try {
-      ctx.filter = filterStr;
+      ctx2.filter = filterStr;
     } catch {
     }
-    ctx.drawImage(tgtCanvas, 0, 0, w, h);
-    ctx.restore();
+    ctx2.drawImage(tgtCanvas, 0, 0, w, h);
+    ctx2.restore();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
   }
@@ -20196,7 +20192,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * pixelate 转场增强渲染：降采样放大实现像素化效果，像素块大小在 progress=0.5 时最大
    * 与前端 TimelineRenderer.renderPixelateTransition 保持一致
    */
-  _renderPixelateTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+  _renderPixelateTransition(ctx2, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
     const p = progress;
     const maxBlockSize = Math.round(30 * exportScale);
     const blockSize = Math.max(
@@ -20204,14 +20200,14 @@ var ServerRenderExporter = class _ServerRenderExporter {
       Math.round(maxBlockSize * (1 - Math.abs(p * 2 - 1)))
     );
     if (blockSize <= 1) {
-      ctx.save();
-      ctx.globalAlpha = 1 - p;
-      ctx.drawImage(srcCanvas, 0, 0, w, h);
-      ctx.restore();
-      ctx.save();
-      ctx.globalAlpha = p;
-      ctx.drawImage(tgtCanvas, 0, 0, w, h);
-      ctx.restore();
+      ctx2.save();
+      ctx2.globalAlpha = 1 - p;
+      ctx2.drawImage(srcCanvas, 0, 0, w, h);
+      ctx2.restore();
+      ctx2.save();
+      ctx2.globalAlpha = p;
+      ctx2.drawImage(tgtCanvas, 0, 0, w, h);
+      ctx2.restore();
       return;
     }
     const smallW = Math.max(1, Math.ceil(w / blockSize));
@@ -20219,22 +20215,22 @@ var ServerRenderExporter = class _ServerRenderExporter {
     const tmpItem = this.acquireCanvas(smallW, smallH);
     const { canvas: tmpCanvas, ctx: tmpCtx } = tmpItem;
     try {
-      const prevSmoothing = ctx.imageSmoothingEnabled;
-      ctx.save();
-      ctx.globalAlpha = 1 - p;
+      const prevSmoothing = ctx2.imageSmoothingEnabled;
+      ctx2.save();
+      ctx2.globalAlpha = 1 - p;
       tmpCtx.clearRect(0, 0, smallW, smallH);
       tmpCtx.drawImage(srcCanvas, 0, 0, smallW, smallH);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(tmpCanvas, 0, 0, w, h);
-      ctx.restore();
-      ctx.save();
-      ctx.globalAlpha = p;
+      ctx2.imageSmoothingEnabled = false;
+      ctx2.drawImage(tmpCanvas, 0, 0, w, h);
+      ctx2.restore();
+      ctx2.save();
+      ctx2.globalAlpha = p;
       tmpCtx.clearRect(0, 0, smallW, smallH);
       tmpCtx.drawImage(tgtCanvas, 0, 0, smallW, smallH);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(tmpCanvas, 0, 0, w, h);
-      ctx.restore();
-      ctx.imageSmoothingEnabled = prevSmoothing;
+      ctx2.imageSmoothingEnabled = false;
+      ctx2.drawImage(tmpCanvas, 0, 0, w, h);
+      ctx2.restore();
+      ctx2.imageSmoothingEnabled = prevSmoothing;
     } finally {
       this.releaseCanvas(tmpItem);
     }
@@ -20243,43 +20239,43 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * crossZoom 转场增强渲染：source 放大模糊淡出 + target 缩小模糊淡入
    * 与前端 TimelineRenderer.renderCrossZoomTransition 保持一致
    */
-  _renderCrossZoomTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+  _renderCrossZoomTransition(ctx2, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
     const p = progress;
     const maxBlur = 20 * exportScale;
     const srcScale = 1 + p;
     const srcBlur = maxBlur * p;
-    ctx.save();
-    ctx.globalAlpha = 1 - p;
+    ctx2.save();
+    ctx2.globalAlpha = 1 - p;
     if (srcBlur > 0.5) {
       try {
-        ctx.filter = `blur(${srcBlur}px)`;
+        ctx2.filter = `blur(${srcBlur}px)`;
       } catch {
       }
     }
     const sx = w * (1 - srcScale) / 2;
     const sy = h * (1 - srcScale) / 2;
-    ctx.drawImage(srcCanvas, sx, sy, w * srcScale, h * srcScale);
-    ctx.restore();
+    ctx2.drawImage(srcCanvas, sx, sy, w * srcScale, h * srcScale);
+    ctx2.restore();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
     const tgtScale = 0.5 + p * 0.5;
     const tgtBlur = maxBlur * (1 - p);
-    ctx.save();
-    ctx.globalAlpha = p;
+    ctx2.save();
+    ctx2.globalAlpha = p;
     if (tgtBlur > 0.5) {
       try {
-        ctx.filter = `blur(${tgtBlur}px)`;
+        ctx2.filter = `blur(${tgtBlur}px)`;
       } catch {
       }
     }
     const tx = w * (1 - tgtScale) / 2;
     const ty = h * (1 - tgtScale) / 2;
-    ctx.drawImage(tgtCanvas, tx, ty, w * tgtScale, h * tgtScale);
-    ctx.restore();
+    ctx2.drawImage(tgtCanvas, tx, ty, w * tgtScale, h * tgtScale);
+    ctx2.restore();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
   }
@@ -20287,42 +20283,42 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * whipPan 转场增强渲染：横向推挤 + 运动模糊
    * 与前端 TimelineRenderer.renderWhipPanTransition 保持一致
    */
-  _renderWhipPanTransition(ctx, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
+  _renderWhipPanTransition(ctx2, srcCanvas, tgtCanvas, w, h, progress, exportScale = 1) {
     const p = progress;
     const blurIntensity = 1 - Math.abs(p * 2 - 1);
     const blurAmount = 30 * exportScale * blurIntensity;
     const filterStr = blurAmount > 0.5 ? `blur(${blurAmount}px)` : "none";
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, w, h);
-    ctx.clip();
-    ctx.save();
+    ctx2.save();
+    ctx2.beginPath();
+    ctx2.rect(0, 0, w, h);
+    ctx2.clip();
+    ctx2.save();
     if (blurAmount > 0.5) {
       try {
-        ctx.filter = filterStr;
+        ctx2.filter = filterStr;
       } catch {
       }
     }
-    ctx.drawImage(srcCanvas, -w * p, 0, w, h);
-    ctx.restore();
+    ctx2.drawImage(srcCanvas, -w * p, 0, w, h);
+    ctx2.restore();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
-    ctx.save();
+    ctx2.save();
     if (blurAmount > 0.5) {
       try {
-        ctx.filter = filterStr;
+        ctx2.filter = filterStr;
       } catch {
       }
     }
-    ctx.drawImage(tgtCanvas, w * (1 - p), 0, w, h);
-    ctx.restore();
+    ctx2.drawImage(tgtCanvas, w * (1 - p), 0, w, h);
+    ctx2.restore();
     try {
-      ctx.filter = "none";
+      ctx2.filter = "none";
     } catch {
     }
-    ctx.restore();
+    ctx2.restore();
   }
   calculateElementProperties(element, currentTime, canvasWidth, canvasHeight) {
     const localTime = currentTime - element.startTime;
@@ -20412,8 +20408,8 @@ var ServerRenderExporter = class _ServerRenderExporter {
         return item;
       }
     }
-    const canvas = new Canvas(w, h);
-    return { canvas, ctx: canvas.getContext("2d"), w, h };
+    const canvas2 = new Canvas(w, h);
+    return { canvas: canvas2, ctx: canvas2.getContext("2d"), w, h };
   }
   /**
    * 归还离屏 canvas 到池中（上限 8 个）
@@ -20446,43 +20442,43 @@ var ServerRenderExporter = class _ServerRenderExporter {
       (t) => !t.enabled || t.propertyType === "opacity"
     );
   }
-  cachedMeasureWidth(ctx, text, spacingPx = 0) {
+  cachedMeasureWidth(ctx2, text, spacingPx = 0) {
     if (spacingPx === 0) {
-      if (!this._lineWidthCache) return ctx.measureText(text).width;
-      const key2 = `${ctx.font}|${text}`;
+      if (!this._lineWidthCache) return ctx2.measureText(text).width;
+      const key2 = `${ctx2.font}|${text}`;
       const cached2 = this._lineWidthCache.get(key2);
       if (cached2 !== void 0) return cached2;
-      const width2 = ctx.measureText(text).width;
+      const width2 = ctx2.measureText(text).width;
       this._lineWidthCache.set(key2, width2);
       this.evictOldEntries(this._lineWidthCache, 5e3);
       return width2;
     }
     if (!this._lineWidthCache)
-      return measureTextWithSpacing(ctx, text, spacingPx);
-    const key = `${ctx.font}|${text}|s${spacingPx}`;
+      return measureTextWithSpacing(ctx2, text, spacingPx);
+    const key = `${ctx2.font}|${text}|s${spacingPx}`;
     const cached = this._lineWidthCache.get(key);
     if (cached !== void 0) return cached;
-    const width = measureTextWithSpacing(ctx, text, spacingPx);
+    const width = measureTextWithSpacing(ctx2, text, spacingPx);
     this._lineWidthCache.set(key, width);
     this.evictOldEntries(this._lineWidthCache, 5e3);
     return width;
   }
-  cachedTextMetrics(ctx, fontSize) {
+  cachedTextMetrics(ctx2, fontSize) {
     if (!this._metricsCache) {
-      const m2 = ctx.measureText("Mg");
+      const m2 = ctx2.measureText("Mg");
       return {
         ascent: m2.actualBoundingBoxAscent ?? fontSize * 0.8,
         descent: m2.actualBoundingBoxDescent ?? fontSize * 0.2
       };
     }
-    const cached = this._metricsCache.get(ctx.font);
+    const cached = this._metricsCache.get(ctx2.font);
     if (cached) return cached;
-    const m = ctx.measureText("Mg");
+    const m = ctx2.measureText("Mg");
     const metrics = {
       ascent: m.actualBoundingBoxAscent ?? fontSize * 0.8,
       descent: m.actualBoundingBoxDescent ?? fontSize * 0.2
     };
-    this._metricsCache.set(ctx.font, metrics);
+    this._metricsCache.set(ctx2.font, metrics);
     this.evictOldEntries(this._metricsCache, 500);
     return metrics;
   }
@@ -20525,12 +20521,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
     }
     return mediaStart + calc.getMediaTimeAtLocalTime(clampedLocalTime * 1e3);
   }
-  measureCharWidth(ctx, baseFontSpec, char, charWidthCache) {
-    if (!charWidthCache) return ctx.measureText(char).width;
+  measureCharWidth(ctx2, baseFontSpec, char, charWidthCache) {
+    if (!charWidthCache) return ctx2.measureText(char).width;
     const cacheKey = `${baseFontSpec}|${char}`;
     const cached = charWidthCache.get(cacheKey);
     if (cached !== void 0) return cached;
-    const width = ctx.measureText(char).width;
+    const width = ctx2.measureText(char).width;
     charWidthCache.set(cacheKey, width);
     this.evictOldEntries(charWidthCache, 5e3);
     return width;
@@ -20545,28 +20541,28 @@ var ServerRenderExporter = class _ServerRenderExporter {
       count++;
     }
   }
-  getWrappedText(ctx, text, availableWidth, spacingPx = 0) {
+  getWrappedText(ctx2, text, availableWidth, spacingPx = 0) {
     if (!this._textWrapCache)
-      return wrapTextByGrapheme(text, availableWidth, ctx, spacingPx);
-    const key = `${text}|${ctx.font}|${availableWidth}|${spacingPx}`;
+      return wrapTextByGrapheme(text, availableWidth, ctx2, spacingPx);
+    const key = `${text}|${ctx2.font}|${availableWidth}|${spacingPx}`;
     const cached = this._textWrapCache.get(key);
     if (cached) return cached;
-    const wrapped = wrapTextByGrapheme(text, availableWidth, ctx, spacingPx);
+    const wrapped = wrapTextByGrapheme(text, availableWidth, ctx2, spacingPx);
     this._textWrapCache.set(key, wrapped);
     this.evictOldEntries(this._textWrapCache, 2e3);
     return wrapped;
   }
-  applyTransforms(ctx, element, scaleX, scaleY) {
+  applyTransforms(ctx2, element, scaleX, scaleY) {
     const centerX = (element.centerX ?? element.x + element.width / 2) * scaleX;
     const centerY = (element.centerY ?? element.y + element.height / 2) * scaleY;
     const glitchOffsetX = (element._glitchOffsetX ?? 0) * scaleX;
     const glitchOffsetY = (element._glitchOffsetY ?? 0) * scaleY;
-    ctx.translate(centerX + glitchOffsetX, centerY + glitchOffsetY);
+    ctx2.translate(centerX + glitchOffsetX, centerY + glitchOffsetY);
     const rotateX = element._rotateX ?? 0;
     const rotateY = element._rotateY ?? 0;
     if (rotateX !== 0 || rotateY !== 0) {
       apply3DRotation(
-        ctx,
+        ctx2,
         rotateX,
         rotateY,
         element.width * scaleX,
@@ -20574,28 +20570,28 @@ var ServerRenderExporter = class _ServerRenderExporter {
       );
     }
     if (element.rotation) {
-      ctx.rotate(element.rotation * Math.PI / 180);
+      ctx2.rotate(element.rotation * Math.PI / 180);
     }
     const skewX = element.skewX ?? 0;
     const skewY = element.skewY ?? 0;
     if (skewX !== 0 || skewY !== 0) {
       const skewXRad = skewX * Math.PI / 180;
       const skewYRad = skewY * Math.PI / 180;
-      ctx.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
+      ctx2.transform(1, Math.tan(skewYRad), Math.tan(skewXRad), 1, 0, 0);
     }
     const sx = element.scaleX ?? 1;
     const sy = element.scaleY ?? 1;
     const fx = element.flipX ? -1 : 1;
     const fy = element.flipY ? -1 : 1;
-    ctx.scale(sx * fx, sy * fy);
+    ctx2.scale(sx * fx, sy * fy);
     if (element.opacity !== void 0) {
-      ctx.globalAlpha = Math.max(0, Math.min(1, element.opacity));
+      ctx2.globalAlpha = Math.max(0, Math.min(1, element.opacity));
     }
   }
   /**
    * 渲染单个元素到 Canvas
    */
-  async renderElement(ctx, element, time, resolvedPaths, imageLoader, videoExtractor, scaleX, scaleY, canvasWidth, canvasHeight) {
+  async renderElement(ctx2, element, time, resolvedPaths2, imageLoader2, videoExtractor2, scaleX, scaleY, canvasWidth, canvasHeight) {
     const localTime = time - element.startTime;
     const props = this.calculateElementProperties(
       element,
@@ -20606,27 +20602,27 @@ var ServerRenderExporter = class _ServerRenderExporter {
     if ((props.opacity ?? 1) <= 0) return;
     const cachedStatic = this._staticCache?.get(element.id);
     if (cachedStatic) {
-      ctx.save();
-      this.applyTransforms(ctx, props, scaleX, scaleY);
-      ctx.drawImage(
+      ctx2.save();
+      this.applyTransforms(ctx2, props, scaleX, scaleY);
+      ctx2.drawImage(
         cachedStatic.canvas,
         -cachedStatic.drawWidth / 2,
         -cachedStatic.drawHeight / 2
       );
-      ctx.restore();
+      ctx2.restore();
       return;
     }
-    ctx.save();
+    ctx2.save();
     try {
-      this.applyTransforms(ctx, props, scaleX, scaleY);
+      this.applyTransforms(ctx2, props, scaleX, scaleY);
       if (props.blendMode && props.blendMode !== "normal") {
-        ctx.globalCompositeOperation = props.blendMode;
+        ctx2.globalCompositeOperation = props.blendMode;
       }
       const drawWidth = props.width * scaleX;
       const drawHeight = props.height * scaleY;
-      applyClipEffects(ctx, props, drawWidth, drawHeight);
-      applyBlurFilter(ctx, props._blurAmount ?? 0, scaleX);
-      const renderCtx = ctx;
+      applyClipEffects(ctx2, props, drawWidth, drawHeight);
+      applyBlurFilter(ctx2, props._blurAmount ?? 0, scaleX);
+      const renderCtx = ctx2;
       const postFx = detectActivePostEffects(props);
       if (postFx.dissolve) {
         renderCtx.globalAlpha = renderCtx.globalAlpha * (1 - postFx.dissolveProgress);
@@ -20649,9 +20645,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
             props,
             element,
             time,
-            resolvedPaths,
-            imageLoader,
-            videoExtractor,
+            resolvedPaths2,
+            imageLoader2,
+            videoExtractor2,
             drawWidth,
             drawHeight,
             scaleX,
@@ -20671,9 +20667,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
             props,
             element,
             time,
-            resolvedPaths,
-            imageLoader,
-            videoExtractor,
+            resolvedPaths2,
+            imageLoader2,
+            videoExtractor2,
             drawWidth,
             drawHeight,
             scaleX,
@@ -20697,9 +20693,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
           tempProps,
           element,
           time,
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
           drawWidth,
           drawHeight,
           scaleX,
@@ -20726,9 +20722,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
           props,
           element,
           time,
-          resolvedPaths,
-          imageLoader,
-          videoExtractor,
+          resolvedPaths2,
+          imageLoader2,
+          videoExtractor2,
           drawWidth,
           drawHeight,
           scaleX,
@@ -20748,7 +20744,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
         const isFullStatic = this.isStaticElement(element);
         const isSemiStatic = !isFullStatic && this.isSemiStaticElement(element);
         const isAnimatedSvg = (isFullStatic || isSemiStatic) && element.type === "svg" && !!element.src ? this.svgAnimator.isAnimatedSvg(
-          resolvedPaths.get(element.src) ?? ""
+          resolvedPaths2.get(element.src) ?? ""
         ) : false;
         if (this._staticCache && (isFullStatic || isSemiStatic) && !isAnimatedSvg && !this._staticCache.has(element.id)) {
           const offCanvas = new Canvas(drawWidth, drawHeight);
@@ -20760,9 +20756,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
             renderProps,
             element,
             time,
-            resolvedPaths,
-            imageLoader,
-            videoExtractor,
+            resolvedPaths2,
+            imageLoader2,
+            videoExtractor2,
             drawWidth,
             drawHeight,
             scaleX,
@@ -20784,9 +20780,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
             props,
             element,
             time,
-            resolvedPaths,
-            imageLoader,
-            videoExtractor,
+            resolvedPaths2,
+            imageLoader2,
+            videoExtractor2,
             drawWidth,
             drawHeight,
             scaleX,
@@ -20795,9 +20791,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
         }
       }
     } finally {
-      ctx.restore();
+      ctx2.restore();
       try {
-        ctx.filter = "none";
+        ctx2.filter = "none";
       } catch {
       }
     }
@@ -20849,7 +20845,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       // per-pixel FBM turbulence                 → 9× fewer pixels
     };
   }
-  applyGlobalEffects(ctx, width, height, effects) {
+  applyGlobalEffects(ctx2, width, height, effects) {
     const adaptiveScale = (w, h, factor) => {
       const base = 480;
       return Math.max(factor, Math.round(Math.max(w, h) / base));
@@ -20879,16 +20875,16 @@ var ServerRenderExporter = class _ServerRenderExporter {
           continue;
         }
         try {
-          ctx.save();
-          ctx.globalCompositeOperation = "lighter";
-          ctx.drawImage(cached.canvas, 0, 0, width, height);
-          ctx.restore();
+          ctx2.save();
+          ctx2.globalCompositeOperation = "lighter";
+          ctx2.drawImage(cached.canvas, 0, 0, width, height);
+          ctx2.restore();
         } catch {
-          ctx.restore?.();
+          ctx2.restore?.();
         }
       } else {
         try {
-          applyCanvas2DEffect(ctx, width, height, fallbackName, effect.params);
+          applyCanvas2DEffect(ctx2, width, height, fallbackName, effect.params);
         } catch {
         }
       }
@@ -20897,16 +20893,16 @@ var ServerRenderExporter = class _ServerRenderExporter {
   /**
    * 分发元素渲染到具体类型处理器
    */
-  async dispatchElementRender(ctx, props, element, time, resolvedPaths, imageLoader, videoExtractor, drawWidth, drawHeight, scaleX, scaleY) {
+  async dispatchElementRender(ctx2, props, element, time, resolvedPaths2, imageLoader2, videoExtractor2, drawWidth, drawHeight, scaleX, scaleY) {
     switch (props.type) {
       case "image": {
         if (!element.src) break;
-        const localPath = resolvedPaths.get(element.src);
+        const localPath = resolvedPaths2.get(element.src);
         if (!localPath) break;
         try {
-          const img = await imageLoader.load(localPath);
+          const img = await imageLoader2.load(localPath);
           this.drawImageElement(
-            ctx,
+            ctx2,
             img,
             props,
             drawWidth,
@@ -20920,7 +20916,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       }
       case "svg": {
         if (!element.src) break;
-        const localPath = resolvedPaths.get(element.src);
+        const localPath = resolvedPaths2.get(element.src);
         if (!localPath) break;
         try {
           if (this.svgAnimator.isAnimatedSvg(localPath)) {
@@ -20933,7 +20929,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
             );
             const img = await loadImage3(pngBuffer);
             this.drawImageElement(
-              ctx,
+              ctx2,
               img,
               props,
               drawWidth,
@@ -20942,9 +20938,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
               scaleY
             );
           } else {
-            const img = await imageLoader.load(localPath);
+            const img = await imageLoader2.load(localPath);
             this.drawImageElement(
-              ctx,
+              ctx2,
               img,
               props,
               drawWidth,
@@ -20959,9 +20955,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
             err
           );
           try {
-            const img = await imageLoader.load(localPath);
+            const img = await imageLoader2.load(localPath);
             this.drawImageElement(
-              ctx,
+              ctx2,
               img,
               props,
               drawWidth,
@@ -20976,13 +20972,13 @@ var ServerRenderExporter = class _ServerRenderExporter {
       }
       case "gif": {
         if (!element.src) break;
-        const localPath = resolvedPaths.get(element.src);
+        const localPath = resolvedPaths2.get(element.src);
         if (!localPath) break;
         try {
           const gifLocalTime = time - element.startTime;
           const gifFrame = await this.getGifFrame(localPath, gifLocalTime);
           this.drawImageElement(
-            ctx,
+            ctx2,
             gifFrame,
             props,
             drawWidth,
@@ -20992,9 +20988,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
           );
         } catch {
           try {
-            const img = await imageLoader.load(localPath);
+            const img = await imageLoader2.load(localPath);
             this.drawImageElement(
-              ctx,
+              ctx2,
               img,
               props,
               drawWidth,
@@ -21009,7 +21005,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       }
       case "video": {
         if (!element.src) break;
-        const localPath = resolvedPaths.get(element.src);
+        const localPath = resolvedPaths2.get(element.src);
         if (!localPath) break;
         const localTimeRaw = time - element.startTime + element.trimStart;
         const visibleDuration = Math.max(
@@ -21025,12 +21021,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
           clampedLocalTime
         );
         try {
-          const frame = await videoExtractor.extractFrame(
+          const frame = await videoExtractor2.extractFrame(
             localPath,
             Math.max(0, targetMediaTime)
           );
           this.drawImageElement(
-            ctx,
+            ctx2,
             frame,
             props,
             drawWidth,
@@ -21043,12 +21039,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
         break;
       }
       case "text": {
-        this.renderTextElement(ctx, props, element, scaleX, scaleY);
+        this.renderTextElement(ctx2, props, element, scaleX, scaleY);
         break;
       }
       case "shape": {
         this.renderShapeElement(
-          ctx,
+          ctx2,
           props,
           element,
           drawWidth,
@@ -21072,8 +21068,8 @@ var ServerRenderExporter = class _ServerRenderExporter {
         delays.push(delays.length > 0 ? delays[delays.length - 1] : 100);
       }
       const frames = await this.loadGifFrames(localPath, pageCount);
-      const totalDuration = delays.reduce((a, b) => a + b, 0);
-      cached = { frames, delays, totalDuration };
+      const totalDuration2 = delays.reduce((a, b) => a + b, 0);
+      cached = { frames, delays, totalDuration: totalDuration2 };
       this.gifCache.set(localPath, cached);
     }
     if (cached.frames.length <= 1) {
@@ -21106,10 +21102,10 @@ var ServerRenderExporter = class _ServerRenderExporter {
     }
     return frames;
   }
-  renderShapeElement(ctx, props, element, drawWidth, drawHeight, scaleX, scaleY = scaleX) {
+  renderShapeElement(ctx2, props, element, drawWidth, drawHeight, scaleX, scaleY = scaleX) {
     const shapeType = props.shapeType || element.shapeType;
     renderShapeElement(
-      ctx,
+      ctx2,
       {
         shapeType: shapeType || "rect",
         width: drawWidth,
@@ -21130,13 +21126,13 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * 渲染图片/视频元素（含 crop、cover、border radius、border、filter）
    * 核心绘制委托给共享 drawMediaCore
    */
-  drawImageElement(ctx, img, props, drawWidth, drawHeight, scaleX = 1, scaleY = 1) {
+  drawImageElement(ctx2, img, props, drawWidth, drawHeight, scaleX = 1, scaleY = 1) {
     const minScale = Math.min(scaleX, scaleY);
     const filter = this.cachedGetFilter(props);
     const esx = props.scaleX ?? 1;
     const esy = props.scaleY ?? 1;
     drawMediaCore(
-      ctx,
+      ctx2,
       img,
       img.naturalWidth ?? img.width,
       img.naturalHeight ?? img.height,
@@ -21170,7 +21166,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     );
     const borderWidth = props.borderWidth ?? 0;
     if (borderWidth > 0) {
-      drawMediaBorder(ctx, {
+      drawMediaBorder(ctx2, {
         ...props,
         width: drawWidth,
         height: drawHeight,
@@ -21185,7 +21181,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
    *   Pass 1: 填充文字（带阴影）
    *   Pass 2: 禁用阴影 → 描边（无阴影）→ 装饰线（无阴影）→ 恢复阴影
    */
-  renderTextElement(ctx, props, element, scaleX, scaleY) {
+  renderTextElement(ctx2, props, element, scaleX, scaleY) {
     const text = props.text ?? element.text;
     if (!text) return;
     const fontSize = (props.fontSize || element.fontSize || 24) * scaleX;
@@ -21198,23 +21194,23 @@ var ServerRenderExporter = class _ServerRenderExporter {
     const FONT_SIZE_MULT = 1.13;
     const FONT_SIZE_FRACTION = 0.222;
     const lineHeight = fontSize * lineHeightFactor * FONT_SIZE_MULT;
-    ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
-    ctx.textBaseline = "alphabetic";
-    ctx.textAlign = textAlign;
+    ctx2.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
+    ctx2.textBaseline = "alphabetic";
+    ctx2.textAlign = textAlign;
     try {
-      ctx.fontKerning = "normal";
-      ctx.textRendering = "optimizeLegibility";
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
+      ctx2.fontKerning = "normal";
+      ctx2.textRendering = "optimizeLegibility";
+      ctx2.imageSmoothingEnabled = true;
+      ctx2.imageSmoothingQuality = "high";
     } catch {
     }
-    const transform = ctx.getTransform ? ctx.getTransform() : null;
+    const transform = ctx2.getTransform ? ctx2.getTransform() : null;
     const noRotation = transform && Math.abs(transform.b) < 1e-3 && Math.abs(transform.c) < 1e-3 && Math.abs(transform.a) > 1e-3 && Math.abs(transform.d) > 1e-3;
     if (noRotation) {
       const dx = Math.round(transform.e) - transform.e;
       const dy = Math.round(transform.f) - transform.f;
       if (Math.abs(dx) > 1e-3 || Math.abs(dy) > 1e-3) {
-        ctx.translate(dx / transform.a, dy / transform.d);
+        ctx2.translate(dx / transform.a, dy / transform.d);
       }
     }
     const charSpacingPx = charSpacingToPx(
@@ -21227,7 +21223,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     const textboxWidth = (element.textboxWidth || props.width) * scaleX;
     const availableTextWidth = Math.max(0, textboxWidth - padding * 2);
     const wrappedLines = this.getWrappedText(
-      ctx,
+      ctx2,
       text,
       availableTextWidth,
       charSpacingPx
@@ -21238,10 +21234,10 @@ var ServerRenderExporter = class _ServerRenderExporter {
     const backgroundHeight = elementHeight + padding * 2;
     const bgColor = props.backgroundColor || element.backgroundColor;
     if (bgColor) {
-      const prevShadow = captureShadow(ctx);
-      disableShadow(ctx);
+      const prevShadow = captureShadow(ctx2);
+      disableShadow(ctx2);
       drawRoundedRect(
-        ctx,
+        ctx2,
         -backgroundWidth / 2,
         -backgroundHeight / 2,
         backgroundWidth,
@@ -21250,7 +21246,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
         10 * scaleY,
         bgColor
       );
-      restoreShadow(ctx, prevShadow);
+      restoreShadow(ctx2, prevShadow);
     }
     const textBlockCenterOffset = Math.max(
       0,
@@ -21276,7 +21272,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     for (let i = 0; i < wrappedLines.length; i++) {
       lineXs[i] = baseX;
       lineYs[i] = textStartY + i * lineHeight;
-      lineWs[i] = this.cachedMeasureWidth(ctx, wrappedLines[i], charSpacingPx);
+      lineWs[i] = this.cachedMeasureWidth(ctx2, wrappedLines[i], charSpacingPx);
     }
     if (noRotation) {
       for (let i = 0; i < wrappedLines.length; i++) {
@@ -21294,7 +21290,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
     const elemSy = props.scaleY ?? 1;
     const elemSxAbs = Math.abs(elemSx) || 1;
     const elemSyAbs = Math.abs(elemSy) || 1;
-    let renderCtx = ctx;
+    let renderCtx = ctx2;
     let tmpCanvas = null;
     const applyShadow = (target) => {
       target.shadowColor = props.shadowColor || "#000000";
@@ -21310,9 +21306,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
         renderCtx = tmpCanvas.getContext("2d");
         renderCtx.scale(elemSxAbs, elemSyAbs);
         renderCtx.translate(backgroundWidth / 2, backgroundHeight / 2);
-        renderCtx.font = ctx.font;
-        renderCtx.textAlign = ctx.textAlign;
-        renderCtx.textBaseline = ctx.textBaseline;
+        renderCtx.font = ctx2.font;
+        renderCtx.textAlign = ctx2.textAlign;
+        renderCtx.textBaseline = ctx2.textBaseline;
         try {
           renderCtx.fontKerning = "normal";
           renderCtx.textRendering = "optimizeLegibility";
@@ -21403,9 +21399,9 @@ var ServerRenderExporter = class _ServerRenderExporter {
       const dh = tmpCanvas.height / elemSyAbs;
       const halfPxW = Math.round(tmpCanvas.width / 2) / elemSxAbs;
       const halfPxH = Math.round(tmpCanvas.height / 2) / elemSyAbs;
-      applyShadow(ctx);
-      ctx.drawImage(tmpCanvas, -halfPxW, -halfPxH, dw, dh);
-      disableShadow(ctx);
+      applyShadow(ctx2);
+      ctx2.drawImage(tmpCanvas, -halfPxW, -halfPxH, dw, dh);
+      disableShadow(ctx2);
     }
   }
   /**
@@ -21421,7 +21417,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
   /**
    * 渲染字幕叠加层 — 委托给 captionTextRenderer 适配器
    */
-  renderCaptionsOverlay(ctx, canvasWidth, canvasHeight, timeSec, captions, style, animation, captionScaleX = 1, captionScaleY = 1) {
+  renderCaptionsOverlay(ctx2, canvasWidth, canvasHeight, timeSec, captions, style, animation, captionScaleX = 1, captionScaleY = 1) {
     const current = this.findCaptionAt(timeSec, captions);
     if (!current) return;
     const currentTimeMs = timeSec * 1e3;
@@ -21447,7 +21443,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       measureTextMetrics: (c, fontSize) => this.cachedTextMetrics(c, fontSize)
     };
     renderCaptionTextServer(
-      ctx,
+      ctx2,
       current.text || "",
       canvasWidth,
       canvasHeight,
@@ -21461,10 +21457,10 @@ var ServerRenderExporter = class _ServerRenderExporter {
   /**
    * 绘制渐变背景（与前端 TimelineRenderer.drawGradientBackground 一致）
    */
-  drawGradientBackground(ctx, canvasWidth, canvasHeight, gradientString) {
+  drawGradientBackground(ctx2, canvasWidth, canvasHeight, gradientString) {
     try {
       if (gradientString.includes("linear-gradient")) {
-        const gradient = ctx.createLinearGradient(
+        const gradient = ctx2.createLinearGradient(
           0,
           0,
           canvasWidth,
@@ -21474,10 +21470,10 @@ var ServerRenderExporter = class _ServerRenderExporter {
         colors.forEach((color, index) => {
           gradient.addColorStop(index / Math.max(1, colors.length - 1), color);
         });
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx2.fillStyle = gradient;
+        ctx2.fillRect(0, 0, canvasWidth, canvasHeight);
       } else if (gradientString.includes("radial-gradient")) {
-        const gradient = ctx.createRadialGradient(
+        const gradient = ctx2.createRadialGradient(
           canvasWidth / 2,
           canvasHeight / 2,
           0,
@@ -21489,32 +21485,32 @@ var ServerRenderExporter = class _ServerRenderExporter {
         colors.forEach((color, index) => {
           gradient.addColorStop(index / Math.max(1, colors.length - 1), color);
         });
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx2.fillStyle = gradient;
+        ctx2.fillRect(0, 0, canvasWidth, canvasHeight);
       } else {
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx2.fillStyle = "#000000";
+        ctx2.fillRect(0, 0, canvasWidth, canvasHeight);
       }
     } catch (error) {
       console.warn(
         "[ServerRenderExporter] Failed to draw gradient background:",
         error
       );
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx2.fillStyle = "#000000";
+      ctx2.fillRect(0, 0, canvasWidth, canvasHeight);
     }
   }
   /**
    * 渲染模糊背景（与前端 TimelineRenderer.renderBlurBackground 一致）
    * 找到第一个视频/图片元素，cover-fit 绘制到离屏画布，然后模糊覆盖到主画布
    */
-  async renderBlurBackground(ctx, outWidth, outHeight, activeElements, time, blurIntensity, resolvedPaths, imageLoader, videoExtractor, offCanvas, offCtx) {
+  async renderBlurBackground(ctx2, outWidth, outHeight, activeElements, time, blurIntensity, resolvedPaths2, imageLoader2, videoExtractor2, offCanvas, offCtx) {
     const bgCandidate = activeElements.find(
       ({ element: element2 }) => (element2.type === "video" || element2.type === "image") && element2.src
     );
     if (!bgCandidate) return;
     const element = bgCandidate.element;
-    const localPath = resolvedPaths.get(element.src);
+    const localPath = resolvedPaths2.get(element.src);
     if (!localPath) return;
     if (!offCanvas || !offCtx) {
       offCanvas = new Canvas(outWidth, outHeight);
@@ -21538,12 +21534,12 @@ var ServerRenderExporter = class _ServerRenderExporter {
           element,
           clampedLocalTime
         );
-        sourceImg = await videoExtractor.extractFrame(
+        sourceImg = await videoExtractor2.extractFrame(
           localPath,
           Math.max(0, targetMediaTime)
         );
       } else {
-        sourceImg = await imageLoader.load(localPath);
+        sourceImg = await imageLoader2.load(localPath);
       }
       const imgW = sourceImg.naturalWidth ?? sourceImg.width;
       const imgH = sourceImg.naturalHeight ?? sourceImg.height;
@@ -21562,15 +21558,15 @@ var ServerRenderExporter = class _ServerRenderExporter {
         drawY = (outHeight - drawHeight) / 2;
       }
       offCtx.drawImage(sourceImg, drawX, drawY, drawWidth, drawHeight);
-      ctx.save();
+      ctx2.save();
       try {
-        ctx.filter = `blur(${Math.max(0, blurIntensity)}px)`;
+        ctx2.filter = `blur(${Math.max(0, blurIntensity)}px)`;
       } catch {
       }
-      ctx.drawImage(offCanvas, 0, 0);
-      ctx.restore();
+      ctx2.drawImage(offCanvas, 0, 0);
+      ctx2.restore();
       try {
-        ctx.filter = "none";
+        ctx2.filter = "none";
       } catch {
       }
     } catch (err) {
@@ -21584,7 +21580,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
    * 使用 FFmpeg 将帧序列 + 音频编码为视频
    */
   encodeVideo(framesDir, audioPath, outputPath, fps, bitrate, _format, width = 1920, height = 1080) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve2, reject) => {
       const encoderArgs = buildEncoderArgs(bitrate, fps, width, height);
       const args = [
         "-framerate",
@@ -21607,7 +21603,7 @@ var ServerRenderExporter = class _ServerRenderExporter {
       });
       proc.on("close", (code) => {
         if (code === 0) {
-          resolve3();
+          resolve2();
         } else {
           reject(new Error(`FFmpeg encoding failed (code ${code})`));
         }
@@ -21619,203 +21615,168 @@ var ServerRenderExporter = class _ServerRenderExporter {
   }
 };
 
-// ../../server/src/cli/render-video.ts
-function printHelp() {
-  console.log(
-    `
-Usage: tsx src/cli/render-video.ts <input.json> [options]
-
-Arguments:
-  <input.json>           Path to JSON file containing canvasState
-
-Options:
-  -o, --output <path>    Output file path (default: ./output/video-<timestamp>.mp4)
-  --fps <number>         Frame rate (default: 30)
-  --quality <level>      low | medium | high | very_high (default: medium)
-  --format <fmt>         mp4 | mov | mp3 (default: mp4)
-  --width <number>       Override output width
-  --height <number>      Override output height
-  -q, --quiet            Suppress progress output
-  -h, --help             Show help
-
-Input JSON format:
-  Full submit payload:
-    { "canvasState": {...}, "outputFormat": {...}, "resolution": {...} }
-
-  Or bare canvasState (outputFormat defaults applied):
-    { "width": 1920, "height": 1080, "elements": [...], ... }
-  `.trim()
+// ../../server/src/renderer/frameWorker.ts
+if (isMainThread) {
+  throw new Error("frameWorker.ts must be run as a Worker Thread, not directly.");
+}
+var session = workerData;
+var WorkerVideoExtractor = class {
+  constructor(diskPaths) {
+    this.imageCache = /* @__PURE__ */ new Map();
+    this.diskPaths = diskPaths;
+  }
+  async extractFrame(videoPath, timeSeconds) {
+    const key = `${videoPath}@${timeSeconds.toFixed(3)}`;
+    const cached = this.imageCache.get(key);
+    if (cached) return cached;
+    const filePath = this.diskPaths.get(key);
+    if (!filePath) {
+      throw new Error(`[frameWorker] Pre-extracted frame not found for key: ${key}`);
+    }
+    const img = await loadImage4(filePath);
+    this.imageCache.set(key, img);
+    return img;
+  }
+  setCacheLimit(_n) {
+  }
+  async preloadFrameFromDisk(_key, _path) {
+  }
+  clear() {
+    this.imageCache.clear();
+  }
+  get cacheSize() {
+    return this.imageCache.size;
+  }
+};
+var canvas = new Canvas2(session.outWidth, session.outHeight);
+var ctx = canvas.getContext("2d");
+var blurOffCanvas = session.backgroundType === "blur" ? new Canvas2(session.outWidth, session.outHeight) : null;
+var blurOffCtx = blurOffCanvas?.getContext("2d") ?? null;
+var renderer = new ServerRenderExporter();
+renderer.initializeCaches();
+var imageLoader = new ServerImageLoader();
+var videoExtractor = new WorkerVideoExtractor(
+  new Map(Object.entries(session.videoFrameDiskPaths))
+);
+var resolvedPaths = new Map(Object.entries(session.resolvedPaths));
+var totalDuration = session.totalDuration;
+var activeElementsByFrame;
+if (session.activeElementIndices) {
+  activeElementsByFrame = session.activeElementIndices.map(
+    (frameEntries) => frameEntries.reduce(
+      (acc, [ti, ei]) => {
+        const track = session.renderTracks[ti];
+        const element = track?.elements[ei];
+        if (track && element) acc.push({ track, element });
+        return acc;
+      },
+      []
+    )
+  );
+} else {
+  activeElementsByFrame = DataConverter.buildActiveElementsByFrame(
+    session.renderTracks,
+    session.totalFrames,
+    session.fps,
+    totalDuration,
+    session.transitions
   );
 }
-function parseArgs(argv) {
-  const args = argv.slice(2);
-  if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
-    printHelp();
-    process.exit(0);
-  }
-  const opts = {
-    inputPath: "",
-    fps: 30,
-    quality: "medium",
-    format: "mp4",
-    quiet: false
-  };
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i];
-    switch (arg) {
-      case "-o":
-      case "--output":
-        opts.outputPath = args[++i];
-        break;
-      case "--fps":
-        opts.fps = parseInt(args[++i], 10);
-        break;
-      case "--quality":
-        opts.quality = args[++i];
-        break;
-      case "--format":
-        opts.format = args[++i];
-        break;
-      case "--width":
-        opts.width = parseInt(args[++i], 10);
-        break;
-      case "--height":
-        opts.height = parseInt(args[++i], 10);
-        break;
-      case "-q":
-      case "--quiet":
-        opts.quiet = true;
-        break;
-      default:
-        if (arg.startsWith("-")) {
-          console.error(`Unknown option: ${arg}`);
-          process.exit(1);
-        }
-        opts.inputPath = arg;
-        break;
-    }
-    i++;
-  }
-  if (!opts.inputPath) {
-    console.error("Error: input JSON file path is required.");
-    printHelp();
-    process.exit(1);
-  }
-  return opts;
-}
-function checkFfmpeg() {
+var mbConfig = session.motionBlur ?? null;
+var mbAccBuffer = mbConfig ? new Float64Array(session.outWidth * session.outHeight * 4) : null;
+var mbSubCanvas = mbConfig ? new Canvas2(session.outWidth, session.outHeight) : null;
+var mbSubCtx = mbSubCanvas?.getContext("2d") ?? null;
+parentPort.postMessage({ type: "ready" });
+parentPort.on("message", async (msg) => {
+  if (msg.type !== "renderFrame") return;
+  const { frameIndex } = msg;
   try {
-    execSync2("ffmpeg -version", { stdio: ["pipe", "pipe", "pipe"], timeout: 5e3 });
-  } catch {
-    console.error(
-      "Error: FFmpeg is not installed or not in PATH.\nInstall it and try again:\n  macOS:   brew install ffmpeg\n  Ubuntu:  sudo apt install ffmpeg\n  Windows: choco install ffmpeg\n  Or download from https://ffmpeg.org/download.html"
-    );
-    process.exit(1);
-  }
-}
-async function main() {
-  const opts = parseArgs(process.argv);
-  checkFfmpeg();
-  const inputPath = path6.resolve(opts.inputPath);
-  if (!fs6.existsSync(inputPath)) {
-    console.error(`Error: file not found: ${inputPath}`);
-    process.exit(1);
-  }
-  let raw;
-  try {
-    raw = JSON.parse(fs6.readFileSync(inputPath, "utf-8"));
-  } catch (e) {
-    console.error(`Error: invalid JSON in ${inputPath}`);
-    process.exit(1);
-  }
-  const isFullPayload = raw.canvasState && typeof raw.canvasState === "object";
-  const canvasState = isFullPayload ? raw.canvasState : raw;
-  const payloadOutputFormat = isFullPayload ? raw.outputFormat : void 0;
-  const payloadResolution = isFullPayload ? raw.resolution : void 0;
-  const fps = opts.fps || payloadOutputFormat?.fps || 30;
-  if (!Number.isFinite(fps) || fps <= 0 || fps > 240) {
-    console.error(`Error: invalid fps "${fps}". Must be a number between 1 and 240.`);
-    process.exit(1);
-  }
-  if (opts.width !== void 0 || opts.height !== void 0) {
-    if (!opts.width || !opts.height || opts.width <= 0 || opts.height <= 0 || !Number.isInteger(opts.width) || !Number.isInteger(opts.height)) {
-      console.error("Error: --width and --height must both be positive integers.");
-      process.exit(1);
-    }
-  }
-  const outputFormat = {
-    fps,
-    quality: opts.quality || payloadOutputFormat?.quality || "medium",
-    format: opts.format || payloadOutputFormat?.format || "mp4",
-    motionBlur: payloadOutputFormat?.motionBlur
-  };
-  const resolution = opts.width && opts.height ? { width: opts.width, height: opts.height } : payloadResolution || void 0;
-  const outputDir = path6.resolve("./output");
-  if (!fs6.existsSync(outputDir)) {
-    fs6.mkdirSync(outputDir, { recursive: true });
-  }
-  const ext = outputFormat.format === "mp3" ? "mp3" : outputFormat.format;
-  const outputPath = opts.outputPath ? path6.resolve(opts.outputPath) : path6.join(outputDir, `video-${Date.now()}.${ext}`);
-  const outputParent = path6.dirname(outputPath);
-  if (!fs6.existsSync(outputParent)) {
-    fs6.mkdirSync(outputParent, { recursive: true });
-  }
-  if (!opts.quiet) {
-    const w = resolution?.width || canvasState.width || 1920;
-    const h = resolution?.height || canvasState.height || 1080;
-    console.log(`Input:      ${inputPath}`);
-    console.log(`Output:     ${outputPath}`);
-    console.log(`Resolution: ${w}x${h}`);
-    console.log(`FPS:        ${outputFormat.fps}`);
-    console.log(`Quality:    ${outputFormat.quality}`);
-    console.log(`Format:     ${outputFormat.format}`);
-    console.log();
-  }
-  FontRegistry.registerGoogleFonts();
-  const onProgress = opts.quiet ? void 0 : (progress, stage) => {
-    const pct = Math.min(100, Math.floor(progress));
-    const BAR_WIDTH = 24;
-    const filled = Math.round(pct / 100 * BAR_WIDTH);
-    const bar = "\u2588".repeat(filled) + "\u2591".repeat(BAR_WIDTH - filled);
-    const line = `[${bar}] ${String(pct).padStart(3)}%  ${stage}`;
-    const clearWidth = Math.max(80, (process.stdout.columns ?? 100) - 1);
-    process.stdout.write(`\r${line.padEnd(clearWidth)}`);
-    if (progress >= 100) process.stdout.write("\n");
-  };
-  const startTime = Date.now();
-  const exporter = new ServerRenderExporter();
-  try {
-    const result = await exporter.export(
-      canvasState,
-      outputFormat,
-      resolution,
-      onProgress
-    );
-    if (result !== outputPath) {
-      fs6.copyFileSync(result, outputPath);
-      try {
-        fs6.unlinkSync(result);
-      } catch {
+    let ab;
+    if (mbConfig && mbAccBuffer && mbSubCanvas && mbSubCtx) {
+      const nominalTime = frameIndex === session.totalFrames - 1 ? session.totalDuration : frameIndex / session.fps;
+      const samples = calculateMotionBlurSamples(nominalTime, 1 / session.fps, mbConfig);
+      mbAccBuffer.fill(0);
+      for (const sample of samples) {
+        await renderer.renderFrameToBuffer(
+          frameIndex,
+          session.fps,
+          mbSubCtx,
+          session.outWidth,
+          session.outHeight,
+          session.canvasWidth,
+          session.canvasHeight,
+          session.scaleX,
+          session.scaleY,
+          activeElementsByFrame[frameIndex],
+          session.transitions,
+          session.renderTracks,
+          session.captions,
+          session.captionStyle ?? void 0,
+          session.captionAnimation ?? void 0,
+          session.backgroundColor,
+          session.backgroundType,
+          session.blurIntensity,
+          resolvedPaths,
+          imageLoader,
+          videoExtractor,
+          blurOffCanvas,
+          blurOffCtx,
+          session.totalFrames,
+          session.totalDuration,
+          sample.time
+          // timeOverride：子帧时间点
+        );
+        const raw = mbSubCanvas.toBufferSync("raw");
+        accumulateSubFrame(
+          mbAccBuffer,
+          new Uint8ClampedArray(raw.buffer, raw.byteOffset, raw.byteLength),
+          sample.weight
+        );
       }
-    }
-    const elapsed = ((Date.now() - startTime) / 1e3).toFixed(1);
-    const bytes = fs6.statSync(outputPath).size;
-    const sizeStr = bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    if (!opts.quiet) {
-      console.log();
-      console.log(`Done in ${elapsed}s`);
-      console.log(`Output: ${outputPath} (${sizeStr})`);
+      const finalPixels = new Uint8ClampedArray(mbAccBuffer.length);
+      finalizeAccumulation(mbAccBuffer, finalPixels);
+      ab = finalPixels.buffer.slice(0);
     } else {
-      console.log(outputPath);
+      await renderer.renderFrameToBuffer(
+        frameIndex,
+        session.fps,
+        ctx,
+        session.outWidth,
+        session.outHeight,
+        session.canvasWidth,
+        session.canvasHeight,
+        session.scaleX,
+        session.scaleY,
+        activeElementsByFrame[frameIndex],
+        session.transitions,
+        session.renderTracks,
+        session.captions,
+        session.captionStyle ?? void 0,
+        session.captionAnimation ?? void 0,
+        session.backgroundColor,
+        session.backgroundType,
+        session.blurIntensity,
+        resolvedPaths,
+        imageLoader,
+        videoExtractor,
+        blurOffCanvas,
+        blurOffCtx,
+        session.totalFrames,
+        session.totalDuration
+      );
+      const raw = canvas.toBufferSync("raw");
+      ab = raw.byteOffset === 0 && raw.byteLength === raw.buffer.byteLength ? raw.buffer : raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
     }
-  } catch (error) {
-    console.error();
-    console.error(
-      "Export failed:",
-      error instanceof Error ? error.message : error
+    parentPort.postMessage(
+      { type: "frameResult", frameIndex, buffer: ab },
+      [ab]
+      // Transfer list：ab 在 Worker 侧立即 detach，主线程接管内存
     );
-    process.exit(1);
+  } catch (err) {
+    parentPort.postMessage({
+      type: "frameError",
+      frameIndex,
+      error: err instanceof Error ? err.message : String(err)
+    });
   }
-}
-main();
+});
